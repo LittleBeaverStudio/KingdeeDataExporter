@@ -33,6 +33,7 @@ class SalesDataExporter:
 
         self.no_wechat = no_wechat
         self.only = self._normalize_only(only)
+        self.requested_org_numbers = self._parse_org_numbers(org_numbers) if org_numbers else None
 
         # 日期范围：默认 1-6 号导出上月整月，7 号及以后导出当月 1 号到今天
         if start_date and end_date:
@@ -61,35 +62,36 @@ class SalesDataExporter:
                 self.year = today.year
                 self.period = today.month
 
-        # 默认组织范围（不传 --org 的情况下）
-        self.target_settle_org_numbers = ["101", "102", "104", "105"]
-        self.default_settle_org_id_map = {"101": "100083"}
-        # 销售单据默认只看 101（保持原逻辑），传入 --org 时覆盖
-        self.sale_org_numbers = ["101"]
+        # 默认不写死任何组织编码/公司名；登录后按 --org 或系统组织动态解析
+        self.target_settle_org_numbers = []
+        self.default_settle_org_id_map = {}
+        self.sale_org_numbers = []
+        self.inventory_org_number = None
+        self.bill_configs = self._build_bill_configs()
+        self.report_configs = self._build_report_configs()
 
-        if org_numbers:
-            org_numbers = self._parse_org_numbers(org_numbers)
-            if org_numbers == ["all"]:
-                all_orgs = self.get_all_organizations()
-                org_numbers = [o.get("number") for o in all_orgs if o.get("number")]
-                org_numbers = [n for n in org_numbers if n]
-                if not org_numbers:
-                    raise RuntimeError("未能从金蝶查询到组织列表，无法使用 --org all")
-            self.target_settle_org_numbers = org_numbers
-            self.sale_org_numbers = org_numbers
+        print(f"查询{self.period_name}数据，日期范围: {self.start_date} 至 {self.end_date}")
 
-        # 单据配置：单据ID、单据名称、字段列表、过滤条件、列名
+    def _build_bill_configs(self):
         sale_org_filter = self._build_org_filter("FSaleOrgId.FNumber", self.sale_org_numbers)
         settle_org_filter = self._build_org_filter("FSETTLEORGID.FNumber", self.target_settle_org_numbers)
         pay_org_filter = self._build_org_filter("FPAYORGID.FNumber", self.target_settle_org_numbers)
+        purchase_org_filter = self._build_org_filter("FPurchaseOrgId.FNumber", self.target_settle_org_numbers)
 
-        self.bill_configs = [
+        return [
             {
                 "form_id": "SAL_OUTSTOCK",
                 "bill_name": "销售出库单",
                 "field_keys": "FBillNo,FDate,FCustomerID.FName,FBillTypeID.FName,FSaleDeptID.FName,FSalesManID.FName,FNote,FMaterialID.FName,FStockID.FName,FEntryTaxAmount,FAmount,FAllAmount,FEntryCostAmount",
                 "filter_string": f"{sale_org_filter} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}' AND FDocumentStatus='C'",
                 "columns": ["单据编号", "日期", "客户", "单据类型", "销售部门", "销售员", "备注", "物料名称", "仓库", "税额", "金额", "价税合计", "总成本"],
+            },
+            {
+                "form_id": "SAL_SaleOrder",
+                "bill_name": "销售订单",
+                "field_keys": "FDate,FBillTypeID.FName,FBillNo,FDocumentStatus,FCustId.FName,FSaleDeptId.FName,FSalerId.FName,FCreatorId.FName,FCloseStatus,FMaterialId.FNumber,FMaterialName,FUnitID.FName,FQty,FPrice,FEntryTaxAmount,FAllAmount,FDeliveryDate",
+                "filter_string": f"{sale_org_filter} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}'",
+                "columns": ["日期", "单据类型", "单据编号", "单据状态", "客户", "销售部门", "销售员", "创建人", "关闭状态", "物料编码", "物料名称", "销售单位", "销售数量", "单价", "税额", "价税合计", "要货日期"],
             },
             {
                 "form_id": "SAL_RETURNSTOCK",
@@ -111,6 +113,13 @@ class SalesDataExporter:
                 "field_keys": "FBillTypeID.FName,FDATE,FSUPPLIERID.FName,FBillNo,FSETTLEORGID.FName,FPURCHASEDEPTID.FName,FMATERIALID.FName,FCostName,FCOSTDEPARTMENTID.FName,FCreatorId.FName,FTAXAMOUNTFOR_D,FNOTAXAMOUNT_D,FALLAMOUNT_D,FAP_Remark",
                 "filter_string": f"{settle_org_filter} AND FDATE>='{self.start_date}' AND FDATE<='{self.end_date}' AND FDOCUMENTSTATUS='C'",
                 "columns": ["单据类型", "业务日期", "供应商", "单据编号", "结算组织", "采购部门", "物料名称", "费用项目名称", "费用承担部门", "创建人", "税额", "不含税金额本位币", "价税合计本位币", "备注"],
+            },
+            {
+                "form_id": "PUR_PurchaseOrder",
+                "bill_name": "采购订单",
+                "field_keys": "FBillNo,FDate,FSupplierId.FName,FDocumentStatus,FPurchaseOrgId.FName,FPurchaserId.FName,FCreatorId.FName,FCloseStatus,F_TJKT_ChangeReason_re5,FMaterialId.FNumber,FMaterialName,FUnitId.FName,FQty,FDeliveryDate,FPrice,FEntryTaxAmount,FAllAmount,FGiveAway",
+                "filter_string": f"{purchase_org_filter} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}'",
+                "columns": ["单据编号", "采购日期", "供应商", "单据状态", "采购组织", "采购员", "创建人", "关闭状态", "摘要", "物料编码", "物料名称", "采购单位", "采购数量", "交货日期", "单价", "税额", "价税合计", "是否赠品"],
             },
             {
                 "form_id": "AP_PAYBILL",
@@ -163,8 +172,10 @@ class SalesDataExporter:
             },
         ]
 
-        # 报表配置：使用GetSysReportData接口
-        self.report_configs = [
+    def _build_report_configs(self):
+        inventory_org_number = self.inventory_org_number or (self.target_settle_org_numbers[0] if self.target_settle_org_numbers else "")
+
+        return [
             {
                 "form_id": "AP_SumReport",
                 "report_name": "应付款汇总表",
@@ -189,7 +200,7 @@ class SalesDataExporter:
                     "FUSEDATE": "true",
                     "FBeginDate": self.start_date,
                     "FEndDate": self.end_date,
-                    "FSettleOrgLst": "示例科技有限公司",
+                    "FSettleOrgLst": "",
                     "FOutSettle": "true",
                     "FInSettle": "false",
                 },
@@ -201,7 +212,7 @@ class SalesDataExporter:
                 "field_keys": "FMATERIALBASEID,FMATERIALNAME,FMATERIALGROUP,FSTOCKId,FINITQty,FINITPrice,FINITAMOUNT,FRECEIVEQty,FRECEIVEPrice,FRECEIVEAmount,FSENDQty,FSENDPrice,FSENDAmount,FENDQty,FENDPrice,FENDAmount",
                 "model": {
                     "FACCTGSYSTEMID": {"FNumber": "KJHSTX01_SYS"},
-                    "FACCTGORGID": {"FNumber": "101"},
+                    "FACCTGORGID": {"FNumber": inventory_org_number},
                     "FACCTPOLICYID": {"FNumber": "KJZC01_SYS"},
                     "FYear": str(self.year),
                     "FPeriod": str(self.period),
@@ -219,7 +230,7 @@ class SalesDataExporter:
                 "field_keys": "FPERIOD,FBILLDATE,FBILLNO,FBUSINESSTYPE,FBillFormName,FMATERIALID,FMATERIALNAME,FRECEIVEQty,FRECEIVEPrice,FRECEIVEAmount,FSENDQty,FSENDPrice,FSENDAmount,FENDQty,FENDPrice,FENDAmount",
                 "model": {
                     "FACCTGSYSTEMID": {"FNumber": "KJHSTX01_SYS"},
-                    "FACCTGORGID": {"FNumber": "101"},
+                    "FACCTGORGID": {"FNumber": inventory_org_number},
                     "FACCTPOLICYID": {"FNumber": "KJZC01_SYS"},
                     "FYear": str(self.year),
                     "FENDYEAR": str(self.year),
@@ -255,7 +266,21 @@ class SalesDataExporter:
             },
         ]
 
-        print(f"查询{self.period_name}数据，日期范围: {self.start_date} 至 {self.end_date}")
+    def _resolve_org_scope_after_login(self):
+        if self.requested_org_numbers and self.requested_org_numbers != ["all"]:
+            resolved_org_numbers = self.requested_org_numbers
+        else:
+            all_orgs = self.get_all_organizations()
+            resolved_org_numbers = [o.get("number") for o in all_orgs if o.get("number")]
+            resolved_org_numbers = [n for n in resolved_org_numbers if n]
+            if self.requested_org_numbers == ["all"] and not resolved_org_numbers:
+                raise RuntimeError("未能从金蝶查询到组织列表，无法使用 --org all")
+
+        self.target_settle_org_numbers = resolved_org_numbers
+        self.sale_org_numbers = list(resolved_org_numbers)
+        self.inventory_org_number = resolved_org_numbers[0] if resolved_org_numbers else None
+        self.bill_configs = self._build_bill_configs()
+        self.report_configs = self._build_report_configs()
 
     def _normalize_only(self, only):
         if not only:
@@ -319,9 +344,9 @@ class SalesDataExporter:
                             if org_id and org_number and org_number not in org_id_map:
                                 org_id_map[org_number] = org_id
                 else:
-                    print(f"  ⚠ 组织内码查询失败，状态码: {response.status_code}")
+                    print(f"  [WARN] 组织内码查询失败，状态码: {response.status_code}")
             except Exception as e:
-                print(f"  ⚠ 组织内码查询异常: {e}")
+                print(f"  [WARN] 组织内码查询异常: {e}")
 
         settle_org_ids = [org_id_map[number] for number in org_numbers if number in org_id_map and org_id_map[number]]
         settle_org_lst = ",".join(settle_org_ids)
@@ -790,14 +815,14 @@ class SalesDataExporter:
 
         df = pd.DataFrame(data, columns=columns)
 
-        date_columns = ["日期", "业务日期"]
+        date_columns = ["日期", "业务日期", "采购日期", "要货日期", "交货日期"]
         for col in date_columns:
             if col in df.columns:
                 try:
                     df[col] = pd.to_datetime(df[col], errors="coerce")
                     df[col] = df[col].dt.strftime("%Y-%m-%d")
                 except Exception as e:
-                    print(f"  ⚠ 日期列 {col} 格式化失败: {e}")
+                    print(f"  [WARN] 日期列 {col} 格式化失败: {e}")
 
         if "业务类型" in df.columns:
             business_type_map = {
@@ -828,6 +853,29 @@ class SalesDataExporter:
                 "BD_BANK": "银行",
             }
             df["往来单位类型"] = df["往来单位类型"].map(lambda x: contact_type_map.get(str(x), str(x)))
+
+        status_map = {
+            "Z": "暂存",
+            "A": "创建",
+            "B": "审核中",
+            "C": "已审核",
+            "D": "重新审核",
+        }
+        close_status_map = {
+            "A": "未关闭",
+            "B": "已关闭",
+        }
+        giveaway_map = {
+            "true": "是",
+            "false": "否",
+        }
+
+        if "单据状态" in df.columns:
+            df["单据状态"] = df["单据状态"].map(lambda x: status_map.get(str(x), str(x)))
+        if "关闭状态" in df.columns:
+            df["关闭状态"] = df["关闭状态"].map(lambda x: close_status_map.get(str(x), str(x)))
+        if "是否赠品" in df.columns:
+            df["是否赠品"] = df["是否赠品"].map(lambda x: giveaway_map.get(str(x).lower(), str(x)))
 
         return df
 
@@ -912,19 +960,19 @@ class SalesDataExporter:
             export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             summary_lines = [
-                "📊 金蝶经营数据导出完成",
+                "金蝶经营数据导出完成",
                 "",
-                f"📅 数据周期: {self.period_name}",
-                f"⏰ 导出时间: {export_time}",
+                f"数据周期: {self.period_name}",
+                f"导出时间: {export_time}",
                 "",
-                "📈 数据明细:",
+                "数据明细:",
             ]
 
             for idx, record in enumerate(bill_records, 1):
                 summary_lines.append(f"  {idx}. {record['name']}: {record['count']} 条")
 
             summary_lines.append("")
-            summary_lines.append("📁 文件信息:")
+            summary_lines.append("文件信息:")
             summary_lines.append(f"  文件名: {os.path.basename(excel_file)}")
             summary_lines.append(f"  大小: {file_size_mb:.2f} MB")
 
@@ -952,6 +1000,8 @@ class SalesDataExporter:
             if not self.login_kingdee():
                 return False
 
+            self._resolve_org_scope_after_login()
+
             all_dataframes = {}
             bill_records = []
 
@@ -975,7 +1025,7 @@ class SalesDataExporter:
                 all_dataframes[bill_name] = df
 
                 if record_count == 0:
-                    print(f"  ⚠ {bill_name} 无数据（将创建空表）")
+                    print(f"  [WARN] {bill_name} 无数据（将创建空表）")
                 else:
                     print(f"  {bill_name} 获取到 {record_count} 条记录")
 
@@ -1012,7 +1062,7 @@ class SalesDataExporter:
                 all_dataframes[report_name] = df
 
                 if record_count == 0:
-                    print(f"  ⚠ {report_name} 无数据（将创建空表）")
+                    print(f"  [WARN] {report_name} 无数据（将创建空表）")
                 else:
                     print(f"  {report_name} 获取到 {record_count} 条记录")
 
