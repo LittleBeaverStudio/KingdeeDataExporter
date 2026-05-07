@@ -122,6 +122,41 @@ class SalesDataExporter:
                 "columns": ["单据编号", "采购日期", "供应商", "单据状态", "采购组织", "采购员", "创建人", "关闭状态", "摘要", "物料编码", "物料名称", "采购单位", "采购数量", "交货日期", "单价", "税额", "价税合计", "是否赠品"],
             },
             {
+                "form_id": "ER_ExpenseRequest",
+                "bill_name": "费用申请单",
+                "field_keys": "FBillNo,FDate,FStaffID.FName,FDeptID.FName,FOrgID.FName,FExpenseItemID.FName,FReason,FIsBorrow,FDocumentStatus,FCloseStatus,FOrgAmount,FCheckedOrgAmount",
+                "filter_string": f"{self._build_org_filter('FOrgID.FNumber', self.target_settle_org_numbers)} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}'",
+                "columns": ["单据编号", "申请日期", "申请人", "申请部门", "申请组织", "费用项目", "事由", "申请借款", "单据状态", "关闭状态", "申请金额", "核定金额"],
+            },
+            {
+                "form_id": "ER_ExpReimbursement",
+                "bill_name": "费用报销单",
+                "field_keys": "FBillTypeID.FName,FRealPay,FBillNo,FCausa,FDate,FProposerID.FName,FRequestDeptID.FName,FOrgID.FName,FRequestType,FExpID.FName,FDocumentStatus,FExpenseAmount,FRequestAmount,FPayedAmount,FRefundedAmount,FBorrowAmount,FOffsetAmount,FReimbNotPayAmount",
+                "filter_string": f"{self._build_org_filter('FOrgID.FNumber', self.target_settle_org_numbers)} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}' AND FCancelStatus='A'",
+                "columns": ["单据类型", "实报实付", "单据编号", "事由", "申请日期", "申请人", "申请部门", "申请组织", "退款/付款", "费用项目", "单据状态", "申请报销金额", "申请退/付款金额", "已付款金额", "已退款金额", "冲借款金额", "冲销金额", "报销未付款金额"],
+            },
+            {
+                "form_id": "ER_ExpenseRequest_Travel",
+                "bill_name": "出差申请单",
+                "field_keys": "FBillNo,FDate,FReason,FExpenseItemID.FName,FStaffID.FName,FDeptID.FName,FOrgID.FName,FIsBorrow,FOrgAmount,FDocumentStatus,FCheckedOrgAmount,FCloseStatus",
+                "filter_string": f"{self._build_org_filter('FOrgID.FNumber', self.target_settle_org_numbers)} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}' AND FCancelStatus='A'",
+                "columns": ["单据编号", "申请日期", "事由", "费用项目", "申请人", "申请部门", "申请组织", "申请借款", "申请金额", "单据状态", "核定金额", "关闭状态"],
+            },
+            {
+                "form_id": "ER_ExpReimbursement_Travel",
+                "bill_name": "差旅费报销单",
+                "field_keys": "FBillTypeID.FName,FRealPay,FBillNo,FCausa,FDate,FProposerID.FName,FRequestDeptID.FName,FOrgID.FName,FRequestType,FExpID.FName,FDocumentStatus,FExpenseAmount,FExpenseOrgId.FName,FRequestAmount,FPayedAmount,FReimbNotPayAmount,FRemark",
+                "filter_string": f"{self._build_org_filter('FOrgID.FNumber', self.target_settle_org_numbers)} AND FDate>='{self.start_date}' AND FDate<='{self.end_date}' AND FCancelStatus='A'",
+                "columns": ["单据类型", "实报实付", "单据编号", "事由", "申请日期", "申请人", "申请部门", "申请组织", "退款/付款", "费用项目", "单据状态", "申请报销金额", "费用承担组织", "申请退/付款金额", "已付款金额", "报销未付款金额", "备注"],
+            },
+            {
+                "form_id": "CN_PAYAPPLY",
+                "bill_name": "付款申请单",
+                "field_keys": "FBILLTYPEID.FName,FBillNo,FDATE,FCONTACTUNIT.FName,FCURRENCYID.FName,FPAYAMOUNTFOR_H,FAPPLYAMOUNTFOR_H,FSETTLECUR.FName,FSETTLEORGID.FName,FCREATORID.FName,FDEPARTMENT.FName,FDOCUMENTSTATUS,FCLOSESTATUS,FPAYPURPOSEID.FName,FENDDATE,FCOSTID.FName,FDescription",
+                "filter_string": f"{self._build_org_filter('FSETTLEORGID.FNumber', self.target_settle_org_numbers)} AND FDATE>='{self.start_date}' AND FDATE<='{self.end_date}' AND FCANCELSTATUS='A'",
+                "columns": ["单据类型", "单据编号", "申请日期", "往来单位", "币别", "应付金额", "申请付款金额", "结算币别", "结算组织", "创建人", "部门", "单据状态", "关闭状态", "付款用途", "到期日", "费用项目", "备注"],
+            },
+            {
                 "form_id": "AP_PAYBILL",
                 "bill_name": "付款单",
                 "field_keys": "FBillTypeID.FName,FBillNo,FDATE,FCONTACTUNITTYPE,FCONTACTUNIT.FName,FREMARK,FSETTLETYPEID.FName,FPURPOSEID.FName,FPAYORGID.FName,FCOSTID.FName,FEXPENSEDEPTID_E.FName,FHANDLINGCHARGEFOR,FREALPAYAMOUNTFOR_D",
@@ -264,6 +299,52 @@ class SalesDataExporter:
                 },
                 "columns": ["资金类别", "银行", "账户名称", "银行账号", "收付组织", "内部账户名称", "内部账户", "原币币别", "原币期初余额", "原币本日收入", "原币本日支出", "原币本日余额", "本位币币别", "本位币期初余额", "本位币本日收入", "本位币本日支出", "本位币本日余额", "收入笔数", "支出笔数"],
             },
+            {
+                "form_id": "SAL_OutStockInvoiceRpt",
+                "report_name": "销售出库开票跟踪表",
+                "field_keys": "FSALEORGNAME,FBILLNO,FBILLTYPENAME,FDate,FSALESNAME,FCUSTOMERNAME,FMATERIALNAME,FREALQTY,FPrice,FALLAMOUNT,FISFREE,FRECQTY,FRECAMOUNT,FWriteOffAmount,FINVOECEQTY,FINVOECEAMOUNT,FRECEIPTAMOUNT,FJSWRITEOFFAMOUNT,FChargeOffAmount",
+                "org_id_model_field": "FSaleOrgId",
+                "model": {
+                    "FSaleOrgId": "",
+                    "FMoneyType": {"FNumber": ""},
+                    "FStartDate": self.start_date,
+                    "FEndDate": self.end_date,
+                    "FCustomerFrom": {"FNumber": ""},
+                    "FCustomerTo": {"FNumber": ""},
+                    "FSaleDeptFrom": {"FNUMBER": ""},
+                    "FSaleDeptTo": {"FNUMBER": ""},
+                    "FMaterialFrom": {"FNumber": ""},
+                    "FMaterialTo": {"FNumber": ""},
+                    "FFormStatus": "C",
+                    "FIsIncludeSerMat": "false",
+                    "FSuite": "",
+                    "FSettleOrgList": "",
+                },
+                "columns": ["销售组织", "单据编号", "单据类型", "日期", "销售员", "客户名称", "物料名称", "数量", "单价", "金额", "是否赠品", "应收数量", "应收金额", "调整金额", "开票数量", "开票金额", "结算金额", "结算调整金额", "特殊冲销金额"],
+            },
+            {
+                "form_id": "PUR_PurchaseOrderDetailRpt",
+                "report_name": "采购订单执行明细表",
+                "field_keys": "FPurchaseOrgId,FBillNo,FDate,FSUPPLIERNAME,FMATERIALNAME,FDELIVERYDATE,FCurrencyId,FOrderQty,FOrderAmount,FReceiveQty,FReceiveAmount,FImportQty,FImportAmount,FReturnQty,FReturnAmount,FPAYQTY,FPAYAMOUNT,FPREINVOICEQTY,FPREINVOICEAMOUNT,FINVOICEQTY,FINVOICEAMOUNT,FRECPAYBILLAMOUNT,FPAYBILLAMOUNT,FSETADJAMOUNT,FPAYWRITOFFAMOUNT,FSPEWOFFAMOUNT",
+                "org_id_model_field": "FPurchaseOrgIdList",
+                "model": {
+                    "FPurchaseOrgIdList": "",
+                    "FOrderStartDate": self.start_date,
+                    "FOrderEndDate": self.end_date,
+                    "FBeginSupplierId": {"FNumber": ""},
+                    "FEndSupplierId": {"FNumber": ""},
+                    "FBeginBillNumber": "",
+                    "FEndBillNumber": "",
+                    "FBeginMaterialId": {"FNumber": ""},
+                    "FEndMaterialId": {"FNumber": ""},
+                    "FBeginPurchaser": {"FNumber": ""},
+                    "FEndFPurchaser": {"FNumber": ""},
+                    "FBusinessType": "",
+                    "FDocumentStatus": "C",
+                    "FLineStatus": "A",
+                },
+                "columns": ["采购组织", "订单编号", "日期", "供应商名称", "物料名称", "交货日期", "结算币别", "订货数量", "价税合计", "收料数量", "收料金额", "入库数量", "入库金额", "退料数量", "退料金额", "应付数量", "应付金额", "先开票数量", "先开票金额", "开票数量", "开票金额", "预付金额", "已结算金额", "结算调整金额", "付款核销金额", "特殊冲销金额"],
+            },
         ]
 
     def _resolve_org_scope_after_login(self):
@@ -278,7 +359,7 @@ class SalesDataExporter:
 
         self.target_settle_org_numbers = resolved_org_numbers
         self.sale_org_numbers = list(resolved_org_numbers)
-        self.inventory_org_number = resolved_org_numbers[0] if resolved_org_numbers else None
+        self.inventory_org_number = "101" if "101" in resolved_org_numbers else (resolved_org_numbers[0] if resolved_org_numbers else None)
         self.bill_configs = self._build_bill_configs()
         self.report_configs = self._build_report_configs()
 
@@ -697,6 +778,27 @@ class SalesDataExporter:
             numeric_candidates = [c for c in df.columns if c not in ["物料编码", "物料名称", "物料分组", "仓库"]]
         elif form_id == "HS_NoDimInOutStockDetailRpt":
             numeric_candidates = [c for c in df.columns if c not in ["期间", "单据日期", "单据编号", "业务类型", "单据类型", "物料编码", "物料名称"]]
+        elif form_id in ("SAL_OutStockInvoiceRpt", "PUR_PurchaseOrderDetailRpt"):
+            numeric_candidates = [
+                c
+                for c in df.columns
+                if c
+                not in [
+                    "销售组织",
+                    "单据编号",
+                    "单据类型",
+                    "日期",
+                    "销售员",
+                    "客户名称",
+                    "物料名称",
+                    "是否赠品",
+                    "采购组织",
+                    "订单编号",
+                    "供应商名称",
+                    "交货日期",
+                    "结算币别",
+                ]
+            ]
         else:
             numeric_candidates = []
 
@@ -707,6 +809,35 @@ class SalesDataExporter:
                 except Exception:
                     pass
 
+        if form_id == "PUR_PurchaseOrderDetailRpt":
+            df = self._fill_purchase_order_detail_merged_headers(df)
+
+        return df
+
+    def _fill_purchase_order_detail_merged_headers(self, df):
+        if df is None or df.empty or "订单编号" not in df.columns:
+            return df
+
+        header_columns = ["采购组织", "订单编号", "日期", "供应商名称"]
+        header_columns = [col for col in header_columns if col in df.columns]
+        if not header_columns:
+            return df
+
+        normalized_order_no = df["订单编号"].astype(str).str.strip()
+        detail_value_columns = [
+            col
+            for col in ["物料名称", "订货数量", "价税合计", "收料数量", "入库数量", "应付数量", "开票数量", "已结算金额"]
+            if col in df.columns
+        ]
+
+        if detail_value_columns:
+            has_detail_values = df[detail_value_columns].astype(str).apply(lambda s: s.str.strip()).ne("").any(axis=1)
+        else:
+            has_detail_values = pd.Series(True, index=df.index)
+
+        fill_mask = normalized_order_no.eq("") & has_detail_values
+        filled_headers = df[header_columns].replace(r"^\s*$", pd.NA, regex=True).ffill()
+        df.loc[fill_mask, header_columns] = filled_headers.loc[fill_mask, header_columns]
         return df
 
     def _clean_numeric_series(self, series):
@@ -815,7 +946,7 @@ class SalesDataExporter:
 
         df = pd.DataFrame(data, columns=columns)
 
-        date_columns = ["日期", "业务日期", "采购日期", "要货日期", "交货日期"]
+        date_columns = ["日期", "业务日期", "采购日期", "申请日期", "要货日期", "交货日期", "到期日"]
         for col in date_columns:
             if col in df.columns:
                 try:
@@ -874,8 +1005,9 @@ class SalesDataExporter:
             df["单据状态"] = df["单据状态"].map(lambda x: status_map.get(str(x), str(x)))
         if "关闭状态" in df.columns:
             df["关闭状态"] = df["关闭状态"].map(lambda x: close_status_map.get(str(x), str(x)))
-        if "是否赠品" in df.columns:
-            df["是否赠品"] = df["是否赠品"].map(lambda x: giveaway_map.get(str(x).lower(), str(x)))
+        for col in ["是否赠品", "申请借款", "实报实付"]:
+            if col in df.columns:
+                df[col] = df[col].map(lambda x: giveaway_map.get(str(x).lower(), str(x)))
 
         return df
 
@@ -1044,6 +1176,9 @@ class SalesDataExporter:
                         model = self.build_ap_sum_report_model(settle_org_lst)
                     else:
                         model = self.build_ar_sum_report_model(settle_org_lst)
+                elif config.get("org_id_model_field"):
+                    settle_org_lst = self.resolve_settle_org_ids_by_numbers(self.target_settle_org_numbers, self.default_settle_org_id_map)
+                    model[config["org_id_model_field"]] = settle_org_lst
 
                 print(f"\n处理报表: {report_name}")
                 print("-" * 60)
