@@ -167,11 +167,59 @@ python scripts/filter_export_excel.py --input "金蝶经营数据_2026年02月_2
 python scripts/filter_export_excel.py --input "金蝶经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org 101
 ```
 
-## 发布到 OpenClaw（建议）
+## 通过 OpenClaw 调用（建议）
 
-- 直接把本目录发布为 GitHub 公共仓库（或仓库子目录）
-- 在 OpenClaw 对话中引导用户：
-  - 下载/安装该目录
-  - 将 `config.example.py` 复制为 `config.py`，再填写 `KINGDEE_CONFIG`
-  - 运行示例命令（某期间 + 某组织 + 某单据类型用 `--start --end --org --only`）
+GitHub 仓库地址：
+
+```text
+https://github.com/LittleBeaverStudio/KingdeeDataExporter
+```
+
+OpenClaw 的 skill 一般以包含 `SKILL.md` 的目录为单位安装。推荐在 OpenClaw 对话中粘贴上面的仓库地址，并明确说明：
+
+```text
+请安装并使用这个 GitHub 仓库里的 KingdeeDataExporter skill，按 SKILL.md 的说明指导我配置 config.py，然后运行金蝶数据导出。
+```
+
+如果你的 OpenClaw 环境支持 CLI，也可以尝试用 GitHub 地址安装：
+
+```bash
+openclaw skills install github:LittleBeaverStudio/KingdeeDataExporter
+```
+
+如果 CLI 不能直接识别该仓库，可以手动安装：下载仓库 ZIP，解压后确认目录中包含 `SKILL.md`、`data_exporter.py`、`requirements.txt`，再把整个目录复制到 OpenClaw 的 skills 目录（常见位置为 `~/.openclaw/skills/KingdeeDataExporter`）。之后在 OpenClaw 对话里说“使用 kingdee-data-exporter skill 导出金蝶数据”，OpenClaw 会根据 `SKILL.md` 引导安装依赖、填写 `config.py` 并执行导出命令。
+
+> 注意：不要把真实的金蝶账号、密码、数据中心 ID 写进公开对话或提交到 GitHub。只在本地 `config.py` 中填写真实配置。
+
+## 通过 WorkBuddy 调用
+
+WorkBuddy 可以导入压缩文件后使用。建议先把本仓库打包成 ZIP，或直接从 GitHub 下载 ZIP，导入 WorkBuddy 的 skill/技能管理入口。
+
+导入后确认压缩包根目录包含这些文件：
+
+- `SKILL.md`
+- `data_exporter.py`
+- `requirements.txt`
+- `config.example.py`
+- `scripts/filter_export_excel.py`
+
+在 WorkBuddy 中可以这样发起任务：
+
+```text
+请使用 kingdee-data-exporter skill，帮我配置并运行金蝶 K3Cloud 经营数据导出。
+```
+
+首次使用时按 WorkBuddy 的提示完成以下步骤：
+
+1. 安装依赖：`python -m pip install -r requirements.txt`
+2. 复制 `config.example.py` 为 `config.py`
+3. 在 `config.py` 中填写 `KINGDEE_CONFIG`，包括 `base_url`、`acctid`、`username`、`password`
+4. 先运行 `python data_exporter.py --list-orgs --no-wechat` 获取组织编码
+5. 再按期间、组织和单据类型运行导出命令，例如：
+
+```bash
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --no-wechat
+```
+
+如果只想导出某一种单据或报表，先让 WorkBuddy 执行 `python data_exporter.py --show-config` 查看可用清单，再用 `--only` 指定名称或 `form_id`。
 
