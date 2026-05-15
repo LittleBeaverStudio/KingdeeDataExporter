@@ -19,6 +19,19 @@ KINGDEE_CONFIG = {
     "acctid": _env("KINGDEE_ACCTID", ""),
     "username": _env("KINGDEE_USERNAME", ""),
     "password": _env("KINGDEE_PASSWORD", ""),
+    # 可选：科目余额表账簿编码。单组织可用 account_book_number；多组织可用 account_book_numbers。
+    # "account_book_number": "",
+    # "account_book_numbers": {"101": "002"},
+    # 可选：财务报表参数。默认导出个别月报；如需季报/合并报表，可在本地覆盖。
+    # "financial_report": {
+    #     "ReportType": 1,
+    #     "ReportNumber": "BBMB0001",
+    #     "AcctSystemNumber": "KJHSTX01_SYS",
+    #     "AcctPolicyNumber": "KJZC01_SYS",
+    #     "CurrencyNumber": "PRE001",
+    #     "CurrUnitNumber": "JEDW01_SYS",
+    #     "CycleType": 4,
+    # },
 }
 
 WECHAT_CONFIG = {

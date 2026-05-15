@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 金蝶 K3Cloud 经营数据（多表）导出脚本
+# 金蝶云星空经营数据（多表）导出脚本
 #
 # 说明：
 # - 本文件是一个自包含版本，用于随 Skill 目录一起发布
@@ -10,9 +10,20 @@ import json
 import sys
 import os
 import copy
+import re
+import importlib.util
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from config import KINGDEE_CONFIG, WECHAT_CONFIG
+
+try:
+    from config import KINGDEE_CONFIG, WECHAT_CONFIG
+except ModuleNotFoundError:
+    config_example_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.py")
+    spec = importlib.util.spec_from_file_location("config_example", config_example_path)
+    config_example = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_example)
+    KINGDEE_CONFIG = config_example.KINGDEE_CONFIG
+    WECHAT_CONFIG = config_example.WECHAT_CONFIG
 
 try:
     import pandas as pd
@@ -24,7 +35,7 @@ except ModuleNotFoundError:
 class SalesDataExporter:
     """销售单据数据导出器"""
 
-    def __init__(self, start_date=None, end_date=None, no_wechat=False, org_numbers=None, only=None):
+    def __init__(self, start_date=None, end_date=None, no_wechat=False, org_numbers=None, only=None, extra_fields=None):
         self.kingdee_config = KINGDEE_CONFIG
         self.wechat_webhook = (WECHAT_CONFIG or {}).get("webhook", "")
         self.session = requests.Session()
@@ -33,6 +44,9 @@ class SalesDataExporter:
 
         self.no_wechat = no_wechat
         self.only = self._normalize_only(only)
+        self.official_fields_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "官方字段说明")
+        self.official_field_cache = {}
+        self.requested_extra_fields = self._parse_extra_fields(extra_fields)
         self.requested_org_numbers = self._parse_org_numbers(org_numbers) if org_numbers else None
 
         # 日期范围：默认 1-6 号导出上月整月，7 号及以后导出当月 1 号到今天
@@ -67,8 +81,10 @@ class SalesDataExporter:
         self.default_settle_org_id_map = {}
         self.sale_org_numbers = []
         self.inventory_org_number = None
+        self.account_book_number = ""
         self.bill_configs = self._build_bill_configs()
         self.report_configs = self._build_report_configs()
+        self._attach_official_fields_to_configs()
 
         print(f"查询{self.period_name}数据，日期范围: {self.start_date} 至 {self.end_date}")
 
@@ -102,9 +118,9 @@ class SalesDataExporter:
             },
             {
                 "form_id": "AR_receivable",
-                "bill_name": "手工标准应收单",
+                "bill_name": "应收单",
                 "field_keys": "FBillTypeID.FName,FBillNo,FDATE,FCUSTOMERID.FName,FSALEORGID.FName,FSALEDEPTID.FName,FMATERIALID.FName,FTAXAMOUNTFOR_D,FNoTaxAmountFor_D,FALLAMOUNTFOR_D,FCreatorId.FName,FAR_Remark",
-                "filter_string": f"{self._build_org_filter('FSALEORGID.FNumber', self.target_settle_org_numbers)} AND FDATE>='{self.start_date}' AND FDATE<='{self.end_date}' AND FDocumentStatus='C' AND FBillTypeID.FName='手工标准应收单'",
+                "filter_string": f"{self._build_org_filter('FSALEORGID.FNumber', self.target_settle_org_numbers)} AND FDATE>='{self.start_date}' AND FDATE<='{self.end_date}' AND FDocumentStatus='C'",
                 "columns": ["单据类型", "单据编号", "业务日期", "客户", "销售组织", "销售部门", "物料名称", "税额", "不含税金额", "价税合计", "创建人", "备注"],
             },
             {
@@ -345,7 +361,71 @@ class SalesDataExporter:
                 },
                 "columns": ["采购组织", "订单编号", "日期", "供应商名称", "物料名称", "交货日期", "结算币别", "订货数量", "价税合计", "收料数量", "收料金额", "入库数量", "入库金额", "退料数量", "退料金额", "应付数量", "应付金额", "先开票数量", "先开票金额", "开票数量", "开票金额", "预付金额", "已结算金额", "结算调整金额", "付款核销金额", "特殊冲销金额"],
             },
+            self._build_kds_report_config("财务报表", "BBMB0001", inventory_org_number),
+            {
+                "form_id": "GL_RPT_AccountBalance",
+                "report_name": "科目余额表",
+                "field_keys": "FBALANCEID,FBALANCENAME,FDETAILNUMBER,FDETAILNAME,FBEGINDEBITLOCAL,FBEGINCREDITLOCAL,FDEBITLOCAL,FCREDITLOCAL,FYTDDEBITLOCAL,FYTDCREDITLOCAL,FENDDEBITLOCAL,FENDCREDITLOCAL",
+                "scheme_id": "69c396dfde2072",
+                "model": {
+                    "FACCTBOOKID": {"FNumber": self.account_book_number},
+                    "FCURRENCY": "0",
+                    "FSTARTYEAR": str(self.year),
+                    "FSTARTPERIOD": str(self.period),
+                    "FENDYEAR": str(self.year),
+                    "FENDPERIOD": str(self.period),
+                    "FBALANCELEVEL": "3",
+                    "FSHOWDETAIL": True,
+                    "FFORBIDBALANCE": True,
+                    "FNOTPOSTVOUCHER": True,
+                    "FDEBITORCREDIT": False,
+                    "FBALANCEZERO": True,
+                    "FNOBUSINESS": False,
+                    "FPERIODNOBALANCE": True,
+                    "FYEARNOBALANCE": True,
+                    "FSHOWFULLNAME": True,
+                    "FDETAILSHOWACCT": True,
+                    "FSHOWDETAILONLY": False,
+                    "FEXCLUDEADJUSTVCH": False,
+                    "FFLEXDEBITORCREDIT": False,
+                    "FSHOWFLEXBYCOL": False,
+                },
+                "columns": ["科目编码", "科目名称", "核算维度编码", "核算维度名称", "期初余额-本位币（借）", "期初余额-本位币（贷）", "本期发生-本位币（借）", "本期发生-本位币（贷）", "本年累计-本位币（借）", "本年累计-本位币（贷）", "期末余额-本位币（借）", "期末余额-本位币（贷）"],
+            },
         ]
+
+    def _build_kds_report_config(self, report_name, report_number, org_number):
+        financial_report_config = (self.kingdee_config or {}).get("financial_report", {}) or {}
+        cycle_type = int(financial_report_config.get("CycleType", 4))
+        return {
+            "form_id": "KDS_ReportData",
+            "report_name": report_name,
+            "api_type": "kds_report",
+            "model": {
+                "ReportType": int(financial_report_config.get("ReportType", 1)),
+                "ReportNumber": financial_report_config.get("ReportNumber", report_number),
+                "AcctSystemNumber": financial_report_config.get("AcctSystemNumber", "KJHSTX01_SYS"),
+                "AcctPolicyNumber": financial_report_config.get("AcctPolicyNumber", "KJZC01_SYS"),
+                "OrgNumber": org_number,
+                "CurrencyNumber": financial_report_config.get("CurrencyNumber", "PRE001"),
+                "CurrUnitNumber": financial_report_config.get("CurrUnitNumber", "JEDW01_SYS"),
+                "CycleType": cycle_type,
+                "Year": int(financial_report_config.get("Year", self.year)),
+                "Period": int(financial_report_config.get("Period", self._report_period_for_cycle(cycle_type))),
+                "DataType": "Json",
+                "ResultType": "0",
+            },
+            "columns": None,
+        }
+
+    def _report_period_for_cycle(self, cycle_type):
+        if cycle_type == 5:
+            return (self.period - 1) // 3 + 1
+        if cycle_type == 6:
+            return 1 if self.period <= 6 else 2
+        if cycle_type == 7:
+            return 1
+        return self.period
 
     def _resolve_org_scope_after_login(self):
         if self.requested_org_numbers and self.requested_org_numbers != ["all"]:
@@ -360,8 +440,10 @@ class SalesDataExporter:
         self.target_settle_org_numbers = resolved_org_numbers
         self.sale_org_numbers = list(resolved_org_numbers)
         self.inventory_org_number = "101" if "101" in resolved_org_numbers else (resolved_org_numbers[0] if resolved_org_numbers else None)
+        self.account_book_number = self.resolve_account_book_number(self.inventory_org_number)
         self.bill_configs = self._build_bill_configs()
         self.report_configs = self._build_report_configs()
+        self._attach_official_fields_to_configs()
 
     def _normalize_only(self, only):
         if not only:
@@ -372,6 +454,89 @@ class SalesDataExporter:
             parts = [str(p).strip() for p in (only or []) if str(p).strip()]
         lowered = {p.lower() for p in parts}
         return lowered or None
+
+    def _parse_extra_fields(self, extra_fields):
+        """解析 --fields，格式：导出项:字段1,字段2;另一个导出项:字段3。"""
+        parsed = {}
+        if not extra_fields:
+            return parsed
+        raw = str(extra_fields).strip()
+        if not raw:
+            return parsed
+        for group in re.split(r"[;；]", raw):
+            if not group.strip():
+                continue
+            if ":" in group:
+                target, fields_part = group.split(":", 1)
+            elif "：" in group:
+                target, fields_part = group.split("：", 1)
+            else:
+                target, fields_part = "*", group
+            target = target.strip().lower() or "*"
+            fields = [f.strip() for f in re.split(r"[,，]", fields_part) if f.strip()]
+            if fields:
+                parsed.setdefault(target, []).extend(fields)
+        return parsed
+
+    def _official_doc_name_for_config(self, config):
+        return config.get("official_doc") or config.get("bill_name") or config.get("report_name")
+
+    def _load_official_fields(self, doc_name):
+        if not doc_name:
+            return {}
+        if doc_name in self.official_field_cache:
+            return self.official_field_cache[doc_name]
+
+        path = os.path.join(self.official_fields_dir, f"{doc_name}.txt")
+        fields = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        match = re.search(r"\s*([^：:]+)[：:]\s*([A-Za-z_][A-Za-z0-9_.]*)", line)
+                        if not match:
+                            continue
+                        name = match.group(1).strip()
+                        key = match.group(2).strip()
+                        if name and key:
+                            fields[name] = key
+                            fields[key.upper()] = key
+            except Exception as e:
+                print(f"  [WARN] 读取官方字段说明失败 {path}: {e}")
+
+        self.official_field_cache[doc_name] = fields
+        return fields
+
+    def _attach_official_fields_to_configs(self):
+        for config in self.bill_configs + self.report_configs:
+            doc_name = self._official_doc_name_for_config(config)
+            config["official_fields"] = self._load_official_fields(doc_name)
+
+    def _append_extra_field_keys(self, config, field_keys):
+        if not self.requested_extra_fields:
+            return field_keys
+
+        names = []
+        for target in ("*", config.get("form_id", "").lower(), config.get("bill_name", "").lower(), config.get("report_name", "").lower()):
+            names.extend(self.requested_extra_fields.get(target, []))
+        if not names:
+            return field_keys
+
+        official_fields = config.get("official_fields") or {}
+        keys = [k.strip() for k in str(field_keys or "").split(",") if k.strip()]
+        key_set = {k.upper() for k in keys}
+        for name in names:
+            key = official_fields.get(name) or official_fields.get(name.upper())
+            if not key and re.match(r"^[A-Za-z_][A-Za-z0-9_.]*$", name):
+                key = name
+            if not key:
+                print(f"  [WARN] {config.get('bill_name') or config.get('report_name')} 未找到官方字段：{name}")
+                continue
+            if key.upper() not in key_set:
+                keys.append(key)
+                key_set.add(key.upper())
+                print(f"  -> 已追加查询字段 {name}: {key}（默认不输出到Excel）")
+        return ",".join(keys)
 
     def _parse_org_numbers(self, org_numbers):
         if isinstance(org_numbers, str):
@@ -434,6 +599,47 @@ class SalesDataExporter:
         print(f"  -> 结算组织内码映射: {org_id_map}")
         print(f"  -> FSettleOrgLst: {settle_org_lst or '[空]'}")
         return settle_org_lst
+
+    def resolve_account_book_number(self, org_number):
+        """根据组织编码推断主账簿编码。"""
+        if not org_number:
+            return ""
+        configured_books = (self.kingdee_config or {}).get("account_book_numbers", {}) or {}
+        if org_number in configured_books:
+            return str(configured_books[org_number]).strip()
+        configured_book = (self.kingdee_config or {}).get("account_book_number", "")
+        if configured_book:
+            return str(configured_book).strip()
+
+        url = self.base_url + "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc"
+        data = {
+            "FormId": "BD_AccountBook",
+            "FieldKeys": "FBOOKID,FNumber,FName",
+            "FilterString": "",
+            "OrderString": "",
+            "TopRowCount": 0,
+            "StartRow": 0,
+            "Limit": 200,
+        }
+        try:
+            response = self.session.post(url, json={"formid": "BD_AccountBook", "data": json.dumps(data, ensure_ascii=False)}, timeout=60)
+            rows = response.json() if response.status_code == 200 else []
+            for row in rows:
+                if not isinstance(row, list) or len(row) < 3:
+                    continue
+                number = str(row[1]).strip()
+                name = str(row[2]).strip()
+                if org_number in name:
+                    print(f"  -> 科目余额表账簿: {number} {name}")
+                    return number
+            if len(rows) == 1 and isinstance(rows[0], list) and len(rows[0]) >= 2:
+                return str(rows[0][1]).strip()
+            non_group_books = [row for row in rows if isinstance(row, list) and len(row) >= 3 and "集团" not in str(row[2])]
+            if len(non_group_books) == 1:
+                return str(non_group_books[0][1]).strip()
+        except Exception as e:
+            print(f"  [WARN] 账簿编码查询异常: {e}")
+        return ""
 
     def build_ap_sum_report_model(self, settle_org_lst):
         """构建应付款汇总表Model。"""
@@ -673,7 +879,7 @@ class SalesDataExporter:
         print(f"  共获取到 {len(all_data)} 条数据")
         return all_data
 
-    def get_report_data(self, form_id, field_keys, model):
+    def get_report_data(self, form_id, field_keys, model, scheme_id=""):
         """使用GetSysReportData接口获取报表数据"""
         all_data = []
         start_row = 0
@@ -686,10 +892,10 @@ class SalesDataExporter:
         while True:
             data = {
                 "FieldKeys": field_keys,
-                "SchemeId": "",
+                "SchemeId": scheme_id,
                 "StartRow": start_row,
                 "Limit": limit,
-                "IsVerifyBaseDataField": True,
+                "IsVerifyBaseDataField": "true",
                 "FilterString": [],
                 "Model": model,
             }
@@ -736,17 +942,131 @@ class SalesDataExporter:
         print(f"  共获取到 {len(all_data)} 条报表数据")
         return all_data
 
+    def get_kds_report_data(self, model):
+        """使用财务报表 GetReportData 接口获取报表数据。"""
+        url = self.base_url + "Kingdee.BOS.KDS.ServiceFacade.ServicesStub.KDSReportAPIStub.GetReportData.common.kdsvc"
+        payload = {"parameters": [json.dumps(model, ensure_ascii=False)]}
+
+        print("  正在获取财务报表数据...")
+        try:
+            response = self.session.post(url, json=payload, timeout=120)
+            if response.status_code != 200:
+                print(f"  API请求失败: {response.status_code}")
+                print(f"  响应内容: {response.text[:500]}")
+                return []
+
+            result = response.json()
+            if isinstance(result, str):
+                result = json.loads(result)
+            if isinstance(result, dict) and str(result.get("status", "")).lower() in ("1", "false", "error"):
+                print(f"  API返回错误: {result.get('message') or result}")
+                return []
+            return self._normalize_kds_report_result(result)
+        except Exception as e:
+            print(f"  获取财务报表数据异常: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return []
+
+    def _normalize_kds_report_result(self, result):
+        if isinstance(result, dict) and "result" in result:
+            result = result.get("result")
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except Exception:
+                    return [["报表结果", result]]
+
+        spread_rows = self._extract_kds_spread_rows(result)
+        if spread_rows:
+            return spread_rows
+
+        if isinstance(result, dict):
+            for key in ("Rows", "rows", "Data", "data", "Result", "result"):
+                value = result.get(key)
+                if isinstance(value, list):
+                    return value
+            return [[k, v] for k, v in result.items()]
+        if isinstance(result, list):
+            return result
+        return [["报表结果", result]]
+
+    def _extract_kds_spread_rows(self, result):
+        if not isinstance(result, dict):
+            return []
+
+        def walk(node):
+            if isinstance(node, dict):
+                if node.get("xtype") == "kdspread" and isinstance(node.get("data"), dict):
+                    data = node["data"].get("data")
+                    if isinstance(data, list) and data:
+                        sheets = {}
+                        for cells in data:
+                            rows = self._kds_cells_to_rows(cells)
+                            if not rows:
+                                continue
+                            title = str(rows[0][0]).strip() or f"报表{len(sheets) + 1}"
+                            sheets[title[:31]] = rows
+                        return sheets or []
+                for value in node.values():
+                    found = walk(value)
+                    if found:
+                        return found
+            elif isinstance(node, list):
+                for item in node:
+                    found = walk(item)
+                    if found:
+                        return found
+            return []
+
+        cells = walk(result)
+        if not cells:
+            return []
+        if isinstance(cells, dict):
+            return cells
+
+        return self._kds_cells_to_rows(cells)
+
+    def _kds_cells_to_rows(self, cells):
+        if not cells:
+            return []
+        max_row = max(int(cell[0]) for cell in cells if isinstance(cell, list) and len(cell) >= 3)
+        max_col = max(int(cell[1]) for cell in cells if isinstance(cell, list) and len(cell) >= 3)
+        rows = [["" for _ in range(max_col + 1)] for _ in range(max_row + 1)]
+        for cell in cells:
+            if not isinstance(cell, list) or len(cell) < 3:
+                continue
+            row_idx = int(cell[0])
+            col_idx = int(cell[1])
+            rows[row_idx][col_idx] = cell[2]
+
+        while rows and all(str(v).strip() == "" for v in rows[-1]):
+            rows.pop()
+        return rows
+
     def parse_report_to_dataframe(self, data, columns=None, form_id=None):
         """将报表数据解析为 DataFrame"""
+        if isinstance(data, dict):
+            return {sheet_name: self.parse_report_to_dataframe(rows, columns=None, form_id=form_id) for sheet_name, rows in data.items()}
+
         if not isinstance(data, list) or len(data) == 0:
             if columns:
                 return pd.DataFrame(columns=columns)
             return pd.DataFrame()
 
         if columns:
-            df = pd.DataFrame(data, columns=columns)
+            df_columns = list(columns)
+            if isinstance(data[0], (list, tuple)) and len(data[0]) > len(df_columns):
+                df_columns.extend([f"__extra_field_{i}" for i in range(1, len(data[0]) - len(columns) + 1)])
+            df = pd.DataFrame(data, columns=df_columns)
+            output_columns = list(columns)
         else:
             df = pd.DataFrame(data)
+            output_columns = None
+
+        if form_id == "KDS_ReportData":
+            return df
 
         # 过滤 AP/AR 汇总表中的“小计/合计”等行（小计可能出现在前两列）
         if form_id in ("AP_SumReport", "AR_SumReport") and len(df.columns) >= 2:
@@ -799,6 +1119,10 @@ class SalesDataExporter:
                     "结算币别",
                 ]
             ]
+        elif form_id == "GL_RPT_AccountBalance":
+            numeric_candidates = [c for c in df.columns if c not in ["科目编码", "科目名称", "核算维度编码", "核算维度名称"]]
+            if "科目编码" in df.columns:
+                df["科目编码"] = df["科目编码"].map(self._format_account_code)
         else:
             numeric_candidates = []
 
@@ -812,7 +1136,18 @@ class SalesDataExporter:
         if form_id == "PUR_PurchaseOrderDetailRpt":
             df = self._fill_purchase_order_detail_merged_headers(df)
 
+        if output_columns:
+            df = df[[col for col in output_columns if col in df.columns]]
+
         return df
+
+    def _format_account_code(self, value):
+        if pd.isna(value):
+            return ""
+        text = str(value).strip()
+        if text.endswith(".0"):
+            text = text[:-2]
+        return text
 
     def _fill_purchase_order_detail_merged_headers(self, df):
         if df is None or df.empty or "订单编号" not in df.columns:
@@ -944,7 +1279,10 @@ class SalesDataExporter:
         if not isinstance(data, list) or len(data) == 0:
             return pd.DataFrame(columns=columns)
 
-        df = pd.DataFrame(data, columns=columns)
+        df_columns = list(columns)
+        if isinstance(data[0], (list, tuple)) and len(data[0]) > len(df_columns):
+            df_columns.extend([f"__extra_field_{i}" for i in range(1, len(data[0]) - len(columns) + 1)])
+        df = pd.DataFrame(data, columns=df_columns)
 
         date_columns = ["日期", "业务日期", "采购日期", "申请日期", "要货日期", "交货日期", "到期日"]
         for col in date_columns:
@@ -1009,16 +1347,17 @@ class SalesDataExporter:
             if col in df.columns:
                 df[col] = df[col].map(lambda x: giveaway_map.get(str(x).lower(), str(x)))
 
-        return df
+        return df[[col for col in columns if col in df.columns]]
 
     def save_all_to_excel(self, dataframes_dict):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"金蝶经营数据_{self.period_name}_{timestamp}.xlsx"
+        filename = f"云星空经营数据_{self.period_name}_{timestamp}.xlsx"
 
         try:
             with pd.ExcelWriter(filename, engine="openpyxl") as writer:
                 for sheet_name, df in dataframes_dict.items():
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    write_header = not self._is_kds_output_sheet(sheet_name)
+                    df.to_excel(writer, sheet_name=sheet_name, index=False, header=write_header)
 
                     try:
                         ws = writer.sheets[sheet_name]
@@ -1031,6 +1370,9 @@ class SalesDataExporter:
         except Exception as e:
             print(f"  保存Excel失败: {e}")
             return None
+
+    def _is_kds_output_sheet(self, sheet_name):
+        return sheet_name in {"资产负债表", "利润表", "现金流量表"} or str(sheet_name).startswith("报表")
 
     def _apply_excel_number_formats(self, sheet_name, df, ws):
         try:
@@ -1047,6 +1389,25 @@ class SalesDataExporter:
         else:
             amount_cols = []
             count_cols = []
+
+        if sheet_name == "科目余额表" and "科目编码" in df.columns:
+            col_idx = list(df.columns).index("科目编码") + 1
+            for row in range(2, 2 + len(df)):
+                cell = ws.cell(row=row, column=col_idx)
+                cell.value = "" if cell.value is None else str(cell.value)
+                cell.number_format = "@"
+
+        if self._is_kds_output_sheet(sheet_name):
+            for row in range(5, ws.max_row + 1):
+                for col in range(2, ws.max_column + 1):
+                    cell = ws.cell(row=row, column=col)
+                    if cell.value is None or str(cell.value).strip() == "":
+                        continue
+                    try:
+                        cell.value = float(str(cell.value).replace(",", "").strip())
+                        cell.number_format = "#,##0.00"
+                    except Exception:
+                        pass
 
         for col_idx, col_name in enumerate(df.columns, start=1):
             series = df[col_name]
@@ -1092,7 +1453,7 @@ class SalesDataExporter:
             export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             summary_lines = [
-                "金蝶经营数据导出完成",
+                "云星空经营数据导出完成",
                 "",
                 f"数据周期: {self.period_name}",
                 f"导出时间: {export_time}",
@@ -1142,7 +1503,7 @@ class SalesDataExporter:
                 bill_name = config["bill_name"]
                 if self.only and (form_id.lower() not in self.only) and (bill_name.lower() not in self.only):
                     continue
-                field_keys = config["field_keys"]
+                field_keys = self._append_extra_field_keys(config, config["field_keys"])
                 filter_string = config["filter_string"]
                 columns = config["columns"]
 
@@ -1166,7 +1527,7 @@ class SalesDataExporter:
                 report_name = config["report_name"]
                 if self.only and (form_id.lower() not in self.only) and (report_name.lower() not in self.only):
                     continue
-                field_keys = config["field_keys"]
+                field_keys = self._append_extra_field_keys(config, config.get("field_keys", ""))
                 model = copy.deepcopy(config["model"])
                 columns = config["columns"]
 
@@ -1179,12 +1540,30 @@ class SalesDataExporter:
                 elif config.get("org_id_model_field"):
                     settle_org_lst = self.resolve_settle_org_ids_by_numbers(self.target_settle_org_numbers, self.default_settle_org_id_map)
                     model[config["org_id_model_field"]] = settle_org_lst
+                elif config.get("api_type") == "kds_report":
+                    model["OrgNumber"] = self.inventory_org_number or (self.target_settle_org_numbers[0] if self.target_settle_org_numbers else "")
 
                 print(f"\n处理报表: {report_name}")
                 print("-" * 60)
 
-                data = self.get_report_data(form_id, field_keys, model)
+                if config.get("api_type") == "kds_report":
+                    data = self.get_kds_report_data(model)
+                else:
+                    data = self.get_report_data(form_id, field_keys, model, scheme_id=config.get("scheme_id", ""))
                 df = self.parse_report_to_dataframe(data, columns, form_id=form_id)
+
+                if isinstance(df, dict):
+                    total_count = 0
+                    for sheet_name, sheet_df in df.items():
+                        record_count = len(sheet_df)
+                        total_count += record_count
+                        bill_records.append({"name": sheet_name, "count": record_count})
+                        all_dataframes[sheet_name] = sheet_df
+                        if record_count == 0:
+                            print(f"  [WARN] {sheet_name} 无数据（将创建空表）")
+                        else:
+                            print(f"  {sheet_name} 获取到 {record_count} 条记录")
+                    continue
 
                 if form_id in ("AR_SumReport", "AP_SumReport"):
                     df = self._drop_rows_with_empty_contactunit_name(df, contactunit_name_col="往来单位名称")
@@ -1234,6 +1613,7 @@ def main():
     no_wechat = False
     org_numbers = None
     only = None
+    extra_fields = None
     list_orgs = False
     show_config = False
 
@@ -1259,6 +1639,11 @@ def main():
             only = sys.argv[sys.argv.index("--only") + 1]
         except Exception:
             only = None
+    if "--fields" in sys.argv:
+        try:
+            extra_fields = sys.argv[sys.argv.index("--fields") + 1]
+        except Exception:
+            extra_fields = None
     if "--list-orgs" in sys.argv:
         list_orgs = True
     if "--show-config" in sys.argv:
@@ -1270,6 +1655,7 @@ def main():
         no_wechat=no_wechat,
         org_numbers=org_numbers,
         only=only,
+        extra_fields=extra_fields,
     )
 
     if show_config:

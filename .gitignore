@@ -3,8 +3,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+.history/
+config.py
 
 # 导出产物
 *.xlsx
 *.csv
-
+kds_report_raw.json

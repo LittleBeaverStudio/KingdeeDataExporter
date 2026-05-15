@@ -83,7 +83,7 @@ def main():
     parser.add_argument("--output", default="", help="输出 Excel 文件路径（默认在同目录生成 *_filtered.xlsx）")
     parser.add_argument("--sheet", default="", help="只筛选指定 sheet（不填则处理所有 sheet）")
     parser.add_argument("--org", default="", help="组织编码或名称关键词（例如 101 或 北京xxx）")
-    parser.add_argument("--bill-type", default="", help="单据类型关键词（例如 手工标准应收单）")
+    parser.add_argument("--bill-type", default="", help="单据类型关键词（例如 应收单）")
     parser.add_argument("--strict", default="false", help="是否严格等值匹配（true/false，默认 false 用包含匹配）")
 
     args = parser.parse_args()
