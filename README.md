@@ -1,3 +1,4 @@
+![License](https://img.shields.io/github/license/LittleBeaverStudio/KingdeeDataExporter?label=license)
 # kingdee-data-exporter
 
 一个**金蝶云星空**经营数据导出工具（单据 + 报表），导出为多 Sheet Excel，并可选推送企业微信群机器人。
