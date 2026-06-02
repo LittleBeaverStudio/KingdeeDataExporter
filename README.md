@@ -265,3 +265,4 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --no-wecha
 
 如果只想导出某一种单据或报表，先让 WorkBuddy 执行 `python data_exporter.py --show-config` 查看可用清单，再用 `--only` 指定名称或 `form_id`。
 
+> ⚠️ 本工具仅在你自有金蝶环境的授权范围内使用，使用者自行负责凭据保管与数据合规。
