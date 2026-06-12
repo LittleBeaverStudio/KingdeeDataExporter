@@ -42,6 +42,16 @@ python data_exporter.py --show-config
 
 后续 `--only` 参数就填这些 `form_id` 或者中文名称（支持逗号分隔）。
 
+### 检查是否有新版本
+
+脚本启动时会自动检查 GitHub 最新 Release；发现新版本时会在控制台输出更新地址，并在企业微信导出摘要里附带版本提醒。
+
+```bash
+python data_exporter.py --check-update --no-wechat
+```
+
+如运行环境不能访问 GitHub，可加 `--no-update-check` 关闭检查。
+
 ### 先导出全部组织列表（降低配置难度）
 
 ```bash
