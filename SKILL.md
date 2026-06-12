@@ -25,6 +25,8 @@ python data_exporter.py
 
 说明：默认会导出 `data_exporter.py` 里 `bill_configs` + `report_configs` 的全部配置项，生成一个多 Sheet 的 Excel。
 
+当前报表中包含 `银行存款流水账`（`CN_BankDetailReport`），默认字段为：银行账号、银行账户名称、业务日期、单据编号、摘要、制单人、币别、收入金额、支出金额、金额、往来单位、收付款用途、单据类型。它按 `--org` 指定的组织范围查询；如需限定银行账号，可在本地 `config.py` 的 `KINGDEE_CONFIG["bank_account_numbers"]` 中填写账号列表。
+
 ## 常用命令
 
 ### 查看当前脚本支持导出的“单据/报表清单”
@@ -53,16 +55,16 @@ python data_exporter.py --list-orgs --no-wechat
 
 ### 某期间 + 某组织 + 全部单据/报表
 
-例如导出 2026-02-01 到 2026-02-28，组织编码 101 的所有配置项：
+例如导出 2026-02-01 到 2026-02-28，组织编码 ORG001 的所有配置项：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --no-wechat
 ```
 
 组织也可以填多个（逗号分隔）：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101,102,104 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001,ORG002,ORG003 --no-wechat
 ```
 
 ### 某期间 + 某组织 + 某单据类型明细（只导出 1 个表单/报表）
@@ -72,13 +74,19 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101,102,104 --
 2) 再用 `--only` 只导出它：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --only SAL_OUTSTOCK --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only SAL_OUTSTOCK --no-wechat
 ```
 
 也可以用中文名：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --only 销售出库单 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only 销售出库单 --no-wechat
+```
+
+例如只导出银行存款流水账：
+
+```bash
+python data_exporter.py --start 2026-06-01 --end 2026-06-12 --org ORG001,ORG002 --only 银行存款流水账 --no-wechat
 ```
 
 ### 全组织导出（先“全量”再二次筛选）
@@ -97,16 +105,16 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org all --no-wecha
 
 脚本位置：`skills/kingdee-data-exporter/scripts/filter_export_excel.py`
 
-示例（按组织编码 101 过滤，并且只保留“单据类型=应收单”的明细行；会自动对每个 Sheet 尝试匹配常见组织列/单据类型列）：
+示例（按组织编码 ORG001 过滤，并且只保留“单据类型=应收单”的明细行；会自动对每个 Sheet 尝试匹配常见组织列/单据类型列）：
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --org 101 --bill-type "应收单"
+python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --org ORG001 --bill-type "应收单"
 ```
 
 如果你只想处理某一个 Sheet：
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org 101
+python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org ORG001
 ```
 
 输出文件默认会生成在同目录，文件名会带 `_filtered` 后缀；也可指定 `--output`。

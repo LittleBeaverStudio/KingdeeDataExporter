@@ -316,6 +316,14 @@ class SalesDataExporter:
                 "columns": ["资金类别", "银行", "账户名称", "银行账号", "收付组织", "内部账户名称", "内部账户", "原币币别", "原币期初余额", "原币本日收入", "原币本日支出", "原币本日余额", "本位币币别", "本位币期初余额", "本位币本日收入", "本位币本日支出", "本位币本日余额", "收入笔数", "支出笔数"],
             },
             {
+                "form_id": "CN_BankDetailReport",
+                "report_name": "银行存款流水账",
+                "field_keys": "FBANKACNTNAME_D,FBANKACNTNAME_NAME,FDate,FBillNo,FDesc,FUser,FForCurrencyName,FForTodayIn,FForTodayOut,FForTodayBal,FContactUnitName,FPurposeName,FBILLTYPEIDNAME",
+                "scheme_id": "6a2b6ac47d6c89",
+                "model": self.build_bank_detail_report_model(),
+                "columns": ["银行账号", "银行账户名称", "业务日期", "单据编号", "摘要", "制单人", "币别", "收入金额", "支出金额", "金额", "往来单位", "收付款用途", "单据类型"],
+            },
+            {
                 "form_id": "SAL_OutStockInvoiceRpt",
                 "report_name": "销售出库开票跟踪表",
                 "field_keys": "FSALEORGNAME,FBILLNO,FBILLTYPENAME,FDate,FSALESNAME,FCUSTOMERNAME,FMATERIALNAME,FREALQTY,FPrice,FALLAMOUNT,FISFREE,FRECQTY,FRECAMOUNT,FWriteOffAmount,FINVOECEQTY,FINVOECEAMOUNT,FRECEIPTAMOUNT,FJSWRITEOFFAMOUNT,FChargeOffAmount",
@@ -439,7 +447,7 @@ class SalesDataExporter:
 
         self.target_settle_org_numbers = resolved_org_numbers
         self.sale_org_numbers = list(resolved_org_numbers)
-        self.inventory_org_number = "101" if "101" in resolved_org_numbers else (resolved_org_numbers[0] if resolved_org_numbers else None)
+        self.inventory_org_number = resolved_org_numbers[0] if resolved_org_numbers else None
         self.account_book_number = self.resolve_account_book_number(self.inventory_org_number)
         self.bill_configs = self._build_bill_configs()
         self.report_configs = self._build_report_configs()
@@ -731,6 +739,31 @@ class SalesDataExporter:
             "FCheckPeriod": "false",
             "FShowMatchBill": "true",
             "FDateRadioGrp": "",
+        }
+
+    def build_bank_detail_report_model(self):
+        """构建银行存款流水账Model。"""
+        bank_account_numbers = (self.kingdee_config or {}).get("bank_account_numbers", [])
+        if isinstance(bank_account_numbers, str):
+            bank_account_numbers = [n.strip() for n in bank_account_numbers.split(",") if n.strip()]
+        else:
+            bank_account_numbers = [str(n).strip() for n in (bank_account_numbers or []) if str(n).strip()]
+
+        return {
+            "FOrgID": [{"FNumber": number} for number in self.target_settle_org_numbers],
+            "FGROUPBILLNO": False,
+            "FBankAccountID": [{"FNumber": number} for number in bank_account_numbers],
+            "FStartDate": f"{self.start_date} 00:00:00",
+            "FEndDate": f"{self.end_date} 00:00:00",
+            "FNotAudit": False,
+            "FMyCurrency": False,
+            "FSumMonth": False,
+            "FSumYear": False,
+            "FMyPayOrg": False,
+            "FSettleOrgBox": False,
+            "FPAYORGIDBOX": True,
+            "FInnerPayOrgBox": False,
+            "FSortRadioGroup": "0",
         }
 
     def login_kingdee(self):
@@ -1123,6 +1156,8 @@ class SalesDataExporter:
             numeric_candidates = [c for c in df.columns if c not in ["科目编码", "科目名称", "核算维度编码", "核算维度名称"]]
             if "科目编码" in df.columns:
                 df["科目编码"] = df["科目编码"].map(self._format_account_code)
+        elif form_id == "CN_BankDetailReport":
+            numeric_candidates = [c for c in df.columns if c in ["收入金额", "支出金额", "金额"]]
         else:
             numeric_candidates = []
 
@@ -1386,6 +1421,9 @@ class SalesDataExporter:
         if sheet_name == "资金头寸表":
             amount_cols = ["(原币)期初余额", "(原币)本期收入", "(原币)本期支出", "(原币)本期余额"]
             count_cols = ["收入笔数", "支出笔数"]
+        elif sheet_name == "银行存款流水账":
+            amount_cols = ["收入金额", "支出金额", "金额"]
+            count_cols = []
         else:
             amount_cols = []
             count_cols = []
@@ -1418,7 +1456,7 @@ class SalesDataExporter:
             else:
                 fmt = None
 
-            if sheet_name == "资金头寸表":
+            if sheet_name in ("资金头寸表", "银行存款流水账"):
                 if col_name in amount_cols:
                     fmt = "#,##0.00"
                 if col_name in count_cols:

@@ -114,13 +114,15 @@ python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEA
   字段：期间、单据日期、单据编号、业务类型、单据类型、物料编码、物料名称、收入数量、收入单价、收入金额、发出数量、发出单价、发出金额、期末数量、期末单价、期末金额
 - 5. `资金头寸表`（`CN_FundPositionReport`）
   字段：资金类别、银行、账户名称、银行账号、收付组织、内部账户名称、内部账户、原币币别、原币期初余额、原币本日收入、原币本日支出、原币本日余额、本位币币别、本位币期初余额、本位币本日收入、本位币本日支出、本位币本日余额、收入笔数、支出笔数
-- 6. `销售出库开票跟踪表`（`SAL_OutStockInvoiceRpt`）
+- 6. `银行存款流水账`（`CN_BankDetailReport`）
+  字段：银行账号、银行账户名称、业务日期、单据编号、摘要、制单人、币别、收入金额、支出金额、金额、往来单位、收付款用途、单据类型；默认按 `--org` 指定的收付组织范围查询，包含已审核单据；如需限定银行账号，可在本地 `config.py` 的 `KINGDEE_CONFIG["bank_account_numbers"]` 中配置账号列表；支持用 `--fields` 追加 `官方字段说明/银行存款流水账.txt` 中的其他字段
+- 7. `销售出库开票跟踪表`（`SAL_OutStockInvoiceRpt`）
   字段：销售组织、单据编号、单据类型、日期、销售员、客户名称、物料名称、数量、单价、金额、是否赠品、应收数量、应收金额、调整金额、开票数量、开票金额、结算金额、结算调整金额、特殊冲销金额；默认单据状态为已审核，统计套件为全部
-- 7. `采购订单执行明细表`（`PUR_PurchaseOrderDetailRpt`）
+- 8. `采购订单执行明细表`（`PUR_PurchaseOrderDetailRpt`）
   字段：采购组织、订单编号、日期、供应商名称、物料名称、交货日期、结算币别、订货数量、价税合计、收料数量、收料金额、入库数量、入库金额、退料数量、退料金额、应付数量、应付金额、先开票数量、先开票金额、开票数量、开票金额、预付金额、已结算金额、结算调整金额、付款核销金额、特殊冲销金额；默认业务类型为全部，单据状态为已审核，行状态为全部
-- 8. `财务报表`（`KDS_ReportData`）
+- 9. `财务报表`（`KDS_ReportData`）
   默认导出资产负债表、利润表、现金流量表三张 Sheet，保留报表标题和表头，金额列写入为 Excel 数值格式；默认按导出期间取对应月报
-- 9. `科目余额表`（`GL_RPT_AccountBalance`）
+- 10. `科目余额表`（`GL_RPT_AccountBalance`）
   字段：科目编码、科目名称、核算维度编码、核算维度名称、期初余额-本位币（借/贷）、本期发生-本位币（借/贷）、本年累计-本位币（借/贷）、期末余额-本位币（借/贷）；科目编码按文本写入；默认币别为综合本位币，科目级别为 3，并勾选显示核算维度明细、核算维度明细行显示科目信息、显示禁用科目、包括未过账凭证、包括余额为零的科目、包括本期/本年没有发生额的科目、显示科目全名
 
 ### 先导出全部组织列表（降低配置难度）
@@ -137,13 +139,13 @@ python data_exporter.py --list-orgs --no-wechat
 ### 某期间 + 某组织：导出全部单据/报表
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --no-wechat
 ```
 
 多个组织（逗号分隔）：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101,102,104 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001,ORG002,ORG003 --no-wechat
 ```
 
 如果不确定组织编码，建议先运行 `--list-orgs`。
@@ -173,13 +175,19 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101,102,104 --
 例如只导出“销售出库单”（`SAL_OUTSTOCK`）：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --only SAL_OUTSTOCK --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only SAL_OUTSTOCK --no-wechat
 ```
 
 也可以用中文名（以 `--show-config` 输出为准）：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --only 销售出库单 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only 销售出库单 --no-wechat
+```
+
+例如只导出银行存款流水账：
+
+```bash
+python data_exporter.py --start 2026-06-01 --end 2026-06-12 --org ORG001,ORG002 --only 银行存款流水账 --no-wechat
 ```
 
 ### 全组织导出（先“全量”再二次筛选）
@@ -193,13 +201,13 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org all --no-wecha
 ## 二次筛选（按组织/单据类型从导出 Excel 再筛一遍）
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --org 101 --bill-type "应收单"
+python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --org ORG001 --bill-type "应收单"
 ```
 
 只处理某一个 Sheet：
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org 101
+python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org ORG001
 ```
 
 ## 通过 OpenClaw 调用（建议）
@@ -260,7 +268,7 @@ WorkBuddy 可以导入压缩文件后使用。建议先把本仓库打包成 ZIP
 5. 再按期间、组织和单据类型运行导出命令，例如：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org 101 --no-wechat
+python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --no-wechat
 ```
 
 如果只想导出某一种单据或报表，先让 WorkBuddy 执行 `python data_exporter.py --show-config` 查看可用清单，再用 `--only` 指定名称或 `form_id`。
