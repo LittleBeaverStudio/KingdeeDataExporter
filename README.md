@@ -51,6 +51,22 @@ python data_exporter.py --show-config --no-wechat
 
 后续 `--only` 参数就填输出里的 `form_id` 或中文名称（支持逗号分隔）。
 
+### 检查是否有新版本
+
+脚本启动时会自动轻量检查 GitHub 最新 Release；发现新版本时，会在控制台输出更新地址。如果配置了企业微信推送，导出摘要里也会附带版本提醒。
+
+也可以单独检查更新，不登录金蝶：
+
+```bash
+python data_exporter.py --check-update --no-wechat
+```
+
+离线环境或不想检查时可关闭：
+
+```bash
+python data_exporter.py --no-update-check
+```
+
 ### 追加查询官方字段（默认不输出）
 
 `官方字段说明` 目录中的字段会作为内置字段池加载。默认 Excel 仍只输出下方列出的默认字段；如果后续流程需要临时调取某个默认未导出的字段，可以用 `--fields` 追加查询字段，避免因为字段不在默认配置里而无法调取。

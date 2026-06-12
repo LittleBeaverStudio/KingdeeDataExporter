@@ -32,10 +32,15 @@ except ModuleNotFoundError:
     raise
 
 
+APP_VERSION = "2026-06-12-1"
+RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
+RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
+
+
 class SalesDataExporter:
     """销售单据数据导出器"""
 
-    def __init__(self, start_date=None, end_date=None, no_wechat=False, org_numbers=None, only=None, extra_fields=None):
+    def __init__(self, start_date=None, end_date=None, no_wechat=False, org_numbers=None, only=None, extra_fields=None, update_info=None):
         self.kingdee_config = KINGDEE_CONFIG
         self.wechat_webhook = (WECHAT_CONFIG or {}).get("webhook", "")
         self.session = requests.Session()
@@ -43,6 +48,7 @@ class SalesDataExporter:
         self.base_url = self.kingdee_config["base_url"] + "/k3cloud/"
 
         self.no_wechat = no_wechat
+        self.update_info = update_info
         self.only = self._normalize_only(only)
         self.official_fields_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "官方字段说明")
         self.official_field_cache = {}
@@ -1506,6 +1512,12 @@ class SalesDataExporter:
             summary_lines.append("文件信息:")
             summary_lines.append(f"  文件名: {os.path.basename(excel_file)}")
             summary_lines.append(f"  大小: {file_size_mb:.2f} MB")
+            if self.update_info:
+                summary_lines.append("")
+                summary_lines.append("版本提醒:")
+                summary_lines.append(f"  当前版本: {self.update_info['current_version']}")
+                summary_lines.append(f"  最新版本: {self.update_info['latest_version']}")
+                summary_lines.append(f"  更新地址: {self.update_info['url']}")
 
             summary_msg = "\n".join(summary_lines)
 
@@ -1645,6 +1657,61 @@ class SalesDataExporter:
             return False
 
 
+def _version_sort_key(version):
+    text = str(version or "").strip().lstrip("vV")
+    parts = re.split(r"[^0-9A-Za-z]+", text)
+    key = []
+    for part in parts:
+        if not part:
+            continue
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part.lower()))
+    return key
+
+
+def is_newer_version(latest_version, current_version):
+    return _version_sort_key(latest_version) > _version_sort_key(current_version)
+
+
+def check_for_update(timeout=3):
+    """检查 GitHub 最新 Release。失败时静默返回 None，不影响导出。"""
+    try:
+        response = requests.get(
+            RELEASES_API_URL,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": f"KingdeeDataExporter/{APP_VERSION}"},
+            timeout=timeout,
+        )
+        if response.status_code != 200:
+            return None
+        data = response.json()
+        latest_version = str(data.get("tag_name") or "").strip()
+        if not latest_version:
+            return None
+        release_url = data.get("html_url") or RELEASES_PAGE_URL
+        if is_newer_version(latest_version, APP_VERSION):
+            return {
+                "current_version": APP_VERSION,
+                "latest_version": latest_version,
+                "url": release_url,
+            }
+    except Exception:
+        return None
+    return None
+
+
+def print_update_notice(update_info):
+    if not update_info:
+        return
+    print("=" * 60)
+    print("发现 KingdeeDataExporter 新版本")
+    print(f"当前版本: {update_info['current_version']}")
+    print(f"最新版本: {update_info['latest_version']}")
+    print(f"更新地址: {update_info['url']}")
+    print("=" * 60)
+
+
 def main():
     start_date = None
     end_date = None
@@ -1654,6 +1721,8 @@ def main():
     extra_fields = None
     list_orgs = False
     show_config = False
+    check_update_only = False
+    no_update_check = False
 
     if "--start" in sys.argv:
         try:
@@ -1686,6 +1755,21 @@ def main():
         list_orgs = True
     if "--show-config" in sys.argv:
         show_config = True
+    if "--check-update" in sys.argv:
+        check_update_only = True
+    if "--no-update-check" in sys.argv:
+        no_update_check = True
+
+    update_info = None
+    if not no_update_check:
+        update_info = check_for_update()
+        print_update_notice(update_info)
+
+    if check_update_only:
+        if update_info:
+            return
+        print(f"当前已是最新版本: {APP_VERSION}")
+        return
 
     exporter = SalesDataExporter(
         start_date=start_date,
@@ -1694,6 +1778,7 @@ def main():
         org_numbers=org_numbers,
         only=only,
         extra_fields=extra_fields,
+        update_info=update_info,
     )
 
     if show_config:
