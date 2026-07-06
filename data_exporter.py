@@ -144,6 +144,13 @@ class SalesDataExporter:
                 "columns": ["单据编号", "采购日期", "供应商", "单据状态", "采购组织", "采购员", "创建人", "关闭状态", "摘要", "物料编码", "物料名称", "采购单位", "采购数量", "交货日期", "单价", "税额", "价税合计", "是否赠品"],
             },
             {
+                "form_id": "IV_ReceivedInvoice",
+                "bill_name": "收票单",
+                "field_keys": "FBillNo,FIVCODE,FIVNUMBER,FPURNAME,FSALENAME,FSUMAMOUNT,FSUMTAXAMOUNT,FSUMALLAMOUNT,FOPENDATE,FSTATUS,FLINKIVNUMBER,FLINKBILLTYPE,FLINKBILLDATE",
+                "filter_string": f"{settle_org_filter} AND FOPENDATE>='{self.start_date}' AND FOPENDATE<='{self.end_date}'",
+                "columns": ["单据编号", "发票代码", "发票号码", "购货方名称", "销售方名称", "不含税额", "税额", "价税合计", "开票日期", "发票状态", "关联单据编号", "关联单据类型", "关联单据日期"],
+            },
+            {
                 "form_id": "ER_ExpenseRequest",
                 "bill_name": "费用申请单",
                 "field_keys": "FBillNo,FDate,FStaffID.FName,FDeptID.FName,FOrgID.FName,FExpenseItemID.FName,FReason,FIsBorrow,FDocumentStatus,FCloseStatus,FOrgAmount,FCheckedOrgAmount",
@@ -1315,7 +1322,7 @@ class SalesDataExporter:
 
         return df_selected[output_columns]
 
-    def parse_data_to_dataframe(self, data, columns):
+    def parse_data_to_dataframe(self, data, columns, form_id=None):
         """将数据解析为DataFrame，添加列名"""
         if not isinstance(data, list) or len(data) == 0:
             return pd.DataFrame(columns=columns)
@@ -1325,7 +1332,7 @@ class SalesDataExporter:
             df_columns.extend([f"__extra_field_{i}" for i in range(1, len(data[0]) - len(columns) + 1)])
         df = pd.DataFrame(data, columns=df_columns)
 
-        date_columns = ["日期", "业务日期", "采购日期", "申请日期", "要货日期", "交货日期", "到期日"]
+        date_columns = ["日期", "业务日期", "采购日期", "申请日期", "要货日期", "交货日期", "到期日", "开票日期", "关联单据日期"]
         for col in date_columns:
             if col in df.columns:
                 try:
@@ -1388,7 +1395,79 @@ class SalesDataExporter:
             if col in df.columns:
                 df[col] = df[col].map(lambda x: giveaway_map.get(str(x).lower(), str(x)))
 
+        if form_id == "IV_ReceivedInvoice":
+            df = self._postprocess_received_invoice(df)
+
         return df[[col for col in columns if col in df.columns]]
+
+    def _postprocess_received_invoice(self, df):
+        if df is None or df.empty:
+            return df
+
+        df = df.copy()
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].map(lambda x: "" if pd.isna(x) else str(x).strip())
+
+        header_columns = ["发票代码", "发票号码", "购货方名称", "销售方名称", "开票日期", "发票状态"]
+        header_columns = [col for col in header_columns if col in df.columns]
+        if "单据编号" in df.columns and header_columns:
+            df[header_columns] = df[header_columns].replace("", pd.NA)
+            df[header_columns] = df.groupby("单据编号", dropna=False)[header_columns].transform(lambda s: s.ffill().bfill())
+            df[header_columns] = df[header_columns].fillna("")
+        if "发票号码" in df.columns and header_columns:
+            invoice_blank_mask = df["发票号码"].astype(str).str.strip().eq("")
+            filled_header = df[header_columns].replace("", pd.NA).ffill()
+            for col in header_columns:
+                df.loc[invoice_blank_mask, col] = filled_header.loc[invoice_blank_mask, col]
+            df[header_columns] = df[header_columns].fillna("")
+            same_invoice_columns = [col for col in header_columns if col != "发票号码"]
+            invoice_no = df["发票号码"].replace("", pd.NA)
+            if same_invoice_columns and invoice_no.notna().any():
+                df[same_invoice_columns] = df[same_invoice_columns].replace("", pd.NA)
+                df[same_invoice_columns] = (
+                    df.assign(__invoice_no=invoice_no)
+                    .groupby("__invoice_no", dropna=False)[same_invoice_columns]
+                    .transform(lambda s: s.ffill().bfill())
+                    .where(invoice_no.notna(), df[same_invoice_columns])
+                )
+                df[same_invoice_columns] = df[same_invoice_columns].fillna("")
+
+        if "发票状态" in df.columns:
+            invoice_status_map = {
+                "0": "正常",
+                "1": "失控",
+                "2": "作废",
+                "3": "红冲",
+                "4": "异常",
+            }
+            df["发票状态"] = df["发票状态"].map(lambda x: invoice_status_map.get(str(x).strip(), str(x).strip()))
+
+        if "关联单据类型" in df.columns:
+            bill_type_map = self._bill_type_display_map()
+            df["关联单据类型"] = df["关联单据类型"].map(lambda x: bill_type_map.get(str(x).strip(), str(x).strip()))
+
+        return df
+
+    def _bill_type_display_map(self):
+        mapping = {}
+        for config in getattr(self, "bill_configs", []) or []:
+            form_id = str(config.get("form_id", "")).strip()
+            name = str(config.get("bill_name", "")).strip()
+            if form_id and name:
+                mapping[form_id] = name
+        for config in getattr(self, "report_configs", []) or []:
+            form_id = str(config.get("form_id", "")).strip()
+            name = str(config.get("report_name", "")).strip()
+            if form_id and name:
+                mapping[form_id] = name
+        mapping.update(
+            {
+                "IV_PUREXPINV": "采购费用发票",
+                "IV_ReceivedInvoice": "收票单",
+            }
+        )
+        return mapping
 
     def save_all_to_excel(self, dataframes_dict):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1561,7 +1640,7 @@ class SalesDataExporter:
                 print("-" * 60)
 
                 data = self.get_bill_data_with_filter(form_id, field_keys, filter_string)
-                df = self.parse_data_to_dataframe(data, columns)
+                df = self.parse_data_to_dataframe(data, columns, form_id=form_id)
 
                 record_count = len(df)
                 bill_records.append({"name": bill_name, "count": record_count})

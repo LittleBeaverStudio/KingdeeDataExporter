@@ -27,6 +27,8 @@ python data_exporter.py
 
 当前报表中包含 `银行存款流水账`（`CN_BankDetailReport`），默认字段为：银行账号、银行账户名称、业务日期、单据编号、摘要、制单人、币别、收入金额、支出金额、金额、往来单位、收付款用途、单据类型。它按 `--org` 指定的组织范围查询；如需限定银行账号，可在本地 `config.py` 的 `KINGDEE_CONFIG["bank_account_numbers"]` 中填写账号列表。
 
+当前单据中包含 `收票单`（`IV_ReceivedInvoice`），默认字段为：单据编号、发票代码、发票号码、购货方名称、销售方名称、不含税额、税额、价税合计、开票日期、发票状态、关联单据编号、关联单据类型、关联单据日期。它按开票日期和结算组织范围查询，可用 `--fields` 追加 `官方字段说明/收票单.txt` 中的其他字段。
+
 ## 常用命令
 
 ### 查看当前脚本支持导出的“单据/报表清单”
@@ -97,6 +99,12 @@ python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only 
 
 ```bash
 python data_exporter.py --start 2026-06-01 --end 2026-06-12 --org ORG001,ORG002 --only 银行存款流水账 --no-wechat
+```
+
+例如只导出收票单：
+
+```bash
+python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only 收票单 --no-wechat
 ```
 
 ### 全组织导出（先“全量”再二次筛选）
