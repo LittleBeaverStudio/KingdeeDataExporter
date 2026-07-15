@@ -1,0 +1,12 @@
+.git/
+.history/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+config.py
+*.pyc
+*.xlsx
+*.csv
+kds_report_raw.json
+
