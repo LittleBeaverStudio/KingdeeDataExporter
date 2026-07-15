@@ -5,6 +5,7 @@
 # - 本文件是一个自包含版本，用于随 Skill 目录一起发布
 # - 配置位于同目录 `config.py`
 
+import argparse
 import requests
 import json
 import sys
@@ -1792,75 +1793,41 @@ def print_update_notice(update_info):
 
 
 def main():
-    start_date = None
-    end_date = None
-    no_wechat = False
-    org_numbers = None
-    only = None
-    extra_fields = None
-    list_orgs = False
-    show_config = False
-    check_update_only = False
-    no_update_check = False
-
-    if "--start" in sys.argv:
-        try:
-            start_date = sys.argv[sys.argv.index("--start") + 1]
-        except Exception:
-            start_date = None
-    if "--end" in sys.argv:
-        try:
-            end_date = sys.argv[sys.argv.index("--end") + 1]
-        except Exception:
-            end_date = None
-    if "--no-wechat" in sys.argv:
-        no_wechat = True
-    if "--org" in sys.argv:
-        try:
-            org_numbers = sys.argv[sys.argv.index("--org") + 1]
-        except Exception:
-            org_numbers = None
-    if "--only" in sys.argv:
-        try:
-            only = sys.argv[sys.argv.index("--only") + 1]
-        except Exception:
-            only = None
-    if "--fields" in sys.argv:
-        try:
-            extra_fields = sys.argv[sys.argv.index("--fields") + 1]
-        except Exception:
-            extra_fields = None
-    if "--list-orgs" in sys.argv:
-        list_orgs = True
-    if "--show-config" in sys.argv:
-        show_config = True
-    if "--check-update" in sys.argv:
-        check_update_only = True
-    if "--no-update-check" in sys.argv:
-        no_update_check = True
+    parser = argparse.ArgumentParser(description="金蝶云星空经营数据导出工具")
+    parser.add_argument("--start", help="开始日期 YYYY-MM-DD")
+    parser.add_argument("--end", help="结束日期 YYYY-MM-DD")
+    parser.add_argument("--org", help="组织编码；多个编码用英文逗号分隔，all 表示全部组织")
+    parser.add_argument("--only", help="只导出指定 form_id 或中文名称；多个项目用英文逗号分隔")
+    parser.add_argument("--fields", dest="extra_fields", help="追加字段，格式为 表单:字段；多个配置用英文逗号分隔")
+    parser.add_argument("--list-orgs", action="store_true", help="导出组织列表后退出")
+    parser.add_argument("--show-config", action="store_true", help="显示可导出的单据和报表后退出")
+    parser.add_argument("--no-wechat", action="store_true", help="不发送企业微信通知")
+    parser.add_argument("--check-update", action="store_true", help="只检查新版本，不执行导出")
+    parser.add_argument("--no-update-check", action="store_true", help="关闭启动时的版本检查")
+    args = parser.parse_args()
 
     update_info = None
-    if not no_update_check:
+    if not args.no_update_check:
         update_info = check_for_update()
         print_update_notice(update_info)
 
-    if check_update_only:
+    if args.check_update:
         if update_info:
             return
         print(f"当前已是最新版本: {APP_VERSION}")
         return
 
     exporter = SalesDataExporter(
-        start_date=start_date,
-        end_date=end_date,
-        no_wechat=no_wechat,
-        org_numbers=org_numbers,
-        only=only,
-        extra_fields=extra_fields,
+        start_date=args.start,
+        end_date=args.end,
+        no_wechat=args.no_wechat,
+        org_numbers=args.org,
+        only=args.only,
+        extra_fields=args.extra_fields,
         update_info=update_info,
     )
 
-    if show_config:
+    if args.show_config:
         print("可用导出项（--only 可填 form_id 或名称，支持逗号分隔）：")
         print("-" * 60)
         for c in exporter.bill_configs:
@@ -1869,7 +1836,7 @@ def main():
             print(f"[RPT ] {c['form_id']}  |  {c['report_name']}")
         return
 
-    if list_orgs:
+    if args.list_orgs:
         orgs = exporter.get_all_organizations()
         try:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
