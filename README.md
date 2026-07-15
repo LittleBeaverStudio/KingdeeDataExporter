@@ -180,18 +180,6 @@ https://github.com/LittleBeaverStudio/KingdeeDataExporter
 请使用 kingdee-data-exporter，先帮我查询组织编码，再导出上个月的销售出库单。
 ```
 
-### ClawHub 特别说明
-
-ClawHub 的网页 GitHub 导入器目前只扫描“登录用户本人拥有”的公开、非 Fork 仓库，不扫描 GitHub Organization 仓库。本仓库属于 `LittleBeaverStudio` Organization，因此不会出现在网页导入列表中，这与 `SKILL.md` 的位置无关。
-
-可用以下任一方式发布：
-
-```bash
-npx clawhub publish . --slug kingdee-data-exporter --version 1.0.0
-```
-
-或者把仓库镜像到当前登录用户本人名下的公开、非 Fork 仓库，再使用 ClawHub 的 GitHub 导入功能。
-
 ### SkillHub / 其他管理器
 
 能递归扫描 `SKILL.md` 的 SkillHub 或桌面管理器可以直接识别本仓库。若平台要求上传压缩包，请压缩整个仓库，并确认解压后根目录中仍有 `SKILL.md`。
