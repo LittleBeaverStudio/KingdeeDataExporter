@@ -1,149 +1,125 @@
 ---
 name: kingdee-data-exporter
-description: 金蝶云星空经营数据（多表单据+报表）导出 Skill。用于指导用户安装后填写 `config.py` 的 `KINGDEE_CONFIG`（base_url/acctid/username/password），然后运行 `data_exporter.py` 批量导出 `bill_configs` + `report_configs` 中已配置的所有表单/报表。支持先 `--list-orgs` 导出全部组织列表，再用 `--org` 指定组织（或 `--org all` 全组织）导出，并可用 `--only` 只导出某个单据/报表；也提供对导出 Excel 做二次筛选（按组织/单据类型）的脚本用法示例。
+description: 金蝶云星空经营数据导出技能。用于配置金蝶账号、查询组织和可用单据/报表，并按期间、组织、单据或报表类型批量导出多工作表 Excel；也支持追加官方字段、全组织导出、导出结果二次筛选和可选的企业微信通知。当用户提到金蝶云星空、K3 Cloud、单据导出、报表导出、经营数据、组织列表、应收应付、库存、采购、销售或财务报表时使用。
 ---
 
-## 你需要做什么（最少步骤）
+# 金蝶云星空数据导出
 
-1) 安装依赖（在本 Skill 目录执行）：
+使用本技能把金蝶云星空中的单据和报表导出为一个多工作表 Excel 文件。
+
+## 工作原则
+
+1. 先确认用户拥有目标金蝶环境和数据的合法访问权限。
+2. 不在对话、日志或公开仓库中展示真实账号、密码、账套 ID、Webhook 或业务数据。
+3. 首次使用时先引导用户从 `config.example.py` 创建本地 `config.py`。
+4. 不确定组织编码时，先运行 `--list-orgs`。
+5. 不确定单据或报表名称时，先运行 `--show-config`。
+6. 数据量可能较大时，优先使用 `--org` 和 `--only` 缩小范围。
+
+## 首次配置
+
+在技能目录中执行：
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-2) 准备配置（避免把真实账号提交到 GitHub）：
+复制 `config.example.py` 为 `config.py`，填写：
 
-- 复制 `config.example.py` 为 `config.py`
-- 在 `config.py` 里填写 `KINGDEE_CONFIG`
-- `WECHAT_CONFIG.webhook` 可留空（或运行时加 `--no-wechat`）
+- `KINGDEE_CONFIG.base_url`：金蝶云星空地址
+- `KINGDEE_CONFIG.acctid`：账套 ID
+- `KINGDEE_CONFIG.username`：用户名
+- `KINGDEE_CONFIG.password`：密码
+- `WECHAT_CONFIG.webhook`：可选；留空或使用 `--no-wechat`
 
-3) 运行导出：
+`config.py` 已被 `.gitignore` 忽略。始终保留这一规则。
 
-```bash
-python data_exporter.py
-```
+## 推荐流程
 
-说明：默认会导出 `data_exporter.py` 里 `bill_configs` + `report_configs` 的全部配置项，生成一个多 Sheet 的 Excel。
-
-当前报表中包含 `银行存款流水账`（`CN_BankDetailReport`），默认字段为：银行账号、银行账户名称、业务日期、单据编号、摘要、制单人、币别、收入金额、支出金额、金额、往来单位、收付款用途、单据类型。它按 `--org` 指定的组织范围查询；如需限定银行账号，可在本地 `config.py` 的 `KINGDEE_CONFIG["bank_account_numbers"]` 中填写账号列表。
-
-当前单据中包含 `收票单`（`IV_ReceivedInvoice`），默认字段为：单据编号、发票代码、发票号码、购货方名称、销售方名称、不含税额、税额、价税合计、开票日期、发票状态、关联单据编号、关联单据类型、关联单据日期。它按开票日期和结算组织范围查询，可用 `--fields` 追加 `官方字段说明/收票单.txt` 中的其他字段。
-
-## 常用命令
-
-### 查看当前脚本支持导出的“单据/报表清单”
+### 1. 查看支持内容
 
 ```bash
-python data_exporter.py --show-config
+python data_exporter.py --show-config --no-wechat
 ```
 
-你会看到两类条目：
+输出中的 `form_id` 或中文名称都可以传给 `--only`。
 
-- `[BILL] form_id | bill_name`
-- `[RPT ] form_id | report_name`
-
-后续 `--only` 参数就填这些 `form_id` 或者中文名称（支持逗号分隔）。
-
-### 检查是否有新版本
-
-脚本启动时会自动检查 GitHub 最新 Release；发现新版本时会在控制台输出更新地址，并在企业微信导出摘要里附带版本提醒。
-
-```bash
-python data_exporter.py --check-update --no-wechat
-```
-
-如运行环境不能访问 GitHub，可加 `--no-update-check` 关闭检查。
-
-### 先导出全部组织列表（降低配置难度）
+### 2. 获取组织编码
 
 ```bash
 python data_exporter.py --list-orgs --no-wechat
 ```
 
-会生成 `组织列表_YYYYmmdd_HHMMSS.xlsx`，里面至少包含：
+生成的组织列表中，`number` 是后续 `--org` 使用的组织编码。
 
-- `number`: 组织编码（后续 `--org` 要用）
-- `name`: 组织名称
-
-### 某期间 + 某组织 + 全部单据/报表
-
-例如导出 2026-02-01 到 2026-02-28，组织编码 ORG001 的所有配置项：
+### 3. 按条件导出
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --no-wechat
+python data_exporter.py --start 2026-01-01 --end 2026-01-31 --org ORG001 --no-wechat
 ```
 
-组织也可以填多个（逗号分隔）：
+只导出一种单据或报表：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001,ORG002,ORG003 --no-wechat
+python data_exporter.py --start 2026-01-01 --end 2026-01-31 --org ORG001 --only 销售出库单 --no-wechat
 ```
 
-### 某期间 + 某组织 + 某单据类型明细（只导出 1 个表单/报表）
-
-1) 先用 `--show-config` 找到你要的 `form_id`，比如“销售出库单”对应 `SAL_OUTSTOCK`
-
-2) 再用 `--only` 只导出它：
+多个组织或多个项目使用英文逗号分隔：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only SAL_OUTSTOCK --no-wechat
+python data_exporter.py --org ORG001,ORG002 --only SAL_OUTSTOCK,AR_receivable --no-wechat
 ```
 
-也可以用中文名：
+全组织导出：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org ORG001 --only 销售出库单 --no-wechat
+python data_exporter.py --org all --only 应收单 --no-wechat
 ```
 
-例如只导出银行存款流水账：
+## 追加官方字段
+
+先在 `官方字段说明/` 中查找字段，再用 `--fields` 追加默认未导出的字段：
 
 ```bash
-python data_exporter.py --start 2026-06-01 --end 2026-06-12 --org ORG001,ORG002 --only 银行存款流水账 --no-wechat
+python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEAMOUNT" --no-wechat
 ```
 
-例如只导出收票单：
+Windows 控制台出现中文参数编码问题时，优先使用字段 key。
+
+## 二次筛选 Excel
+
+对已经导出的 Excel 按组织或单据类型筛选：
 
 ```bash
-python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only 收票单 --no-wechat
+python scripts/filter_export_excel.py --input "导出文件.xlsx" --org ORG001 --bill-type "应收单"
 ```
 
-### 全组织导出（先“全量”再二次筛选）
-
-如果你想先导出全组织，再在 Excel 中二次筛选：
+只处理某个工作表：
 
 ```bash
-python data_exporter.py --start 2026-02-01 --end 2026-02-28 --org all --no-wechat
+python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应付单" --org ORG001
 ```
 
-注意：全组织数据量可能很大，建议优先使用 `--only` 缩小范围。
+## 常用补充命令
 
-## 二次筛选：从导出 Excel 里筛某组织/某单据类型
-
-当你已经用 `--org all` 导出了一份总表（或导出多个组织），可以用下面脚本把各 Sheet 按组织/单据类型再筛一遍，输出一个“过滤后的新 Excel”。
-
-脚本位置：`skills/kingdee-data-exporter/scripts/filter_export_excel.py`
-
-示例（按组织编码 ORG001 过滤，并且只保留“单据类型=应收单”的明细行；会自动对每个 Sheet 尝试匹配常见组织列/单据类型列）：
+检查新版本：
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --org ORG001 --bill-type "应收单"
+python data_exporter.py --check-update --no-wechat
 ```
 
-如果你只想处理某一个 Sheet：
+离线运行：
 
 ```bash
-python scripts/filter_export_excel.py --input "云星空经营数据_2026年02月_20260401_120000.xlsx" --sheet "应付单" --org ORG001
+python data_exporter.py --no-update-check --no-wechat
 ```
 
-输出文件默认会生成在同目录，文件名会带 `_filtered` 后缀；也可指定 `--output`。
+## 结果检查
 
-## 打包发布（可选）
+导出完成后：
 
-如果你要把该 Skill 打包成 `.skill` 文件发布，有两种方式：
-
-```bash
-python ../skill-creator/scripts/package_skill.py .
-```
-
-如果你的仓库里没有 `skill-creator`，也可以直接把本目录打成 zip 并改后缀为 `.skill`（本质是 zip）。
+1. 向用户说明生成文件的完整路径。
+2. 检查所需工作表是否存在、是否有数据。
+3. 若结果为空，依次核对日期、组织权限、单据状态和 `--only` 名称。
+4. 不读取或展示超出用户请求范围的敏感业务数据。
 

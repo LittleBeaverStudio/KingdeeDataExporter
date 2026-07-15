@@ -1,0 +1,4 @@
+interface:
+  display_name: "金蝶云星空数据导出"
+  short_description: "批量导出金蝶云星空单据和报表，并生成多工作表 Excel 文件"
+  default_prompt: "使用 $kingdee-data-exporter 查询组织并导出指定期间的金蝶云星空经营数据。"
