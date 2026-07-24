@@ -12,19 +12,22 @@ import sys
 import os
 import copy
 import re
-import importlib.util
 from datetime import datetime, timedelta
+from pathlib import Path
 from dateutil.relativedelta import relativedelta
 
 try:
-    from config import KINGDEE_CONFIG, WECHAT_CONFIG
+    from config import KINGDEE_CONFIG
 except ModuleNotFoundError:
-    config_example_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.py")
-    spec = importlib.util.spec_from_file_location("config_example", config_example_path)
-    config_example = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_example)
-    KINGDEE_CONFIG = config_example.KINGDEE_CONFIG
-    WECHAT_CONFIG = config_example.WECHAT_CONFIG
+    # 未创建 config.py 时回退到环境变量（与 config.example.py 行为一致）。
+    # 请复制 config.example.py 为 config.py 并填写金蝶连接信息，
+    # 或通过 KINGDEE_BASE_URL / KINGDEE_ACCTID / KINGDEE_USERNAME / KINGDEE_PASSWORD 注入。
+    KINGDEE_CONFIG = {
+        "base_url": os.getenv("KINGDEE_BASE_URL", "https://your-k3cloud-host").strip(),
+        "acctid": os.getenv("KINGDEE_ACCTID", "").strip(),
+        "username": os.getenv("KINGDEE_USERNAME", "").strip(),
+        "password": os.getenv("KINGDEE_PASSWORD", "").strip(),
+    }
 
 try:
     import pandas as pd
@@ -33,7 +36,7 @@ except ModuleNotFoundError:
     raise
 
 
-APP_VERSION = "2026-06-12-1"
+APP_VERSION = "2026-07-24"
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 
@@ -41,15 +44,13 @@ RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/r
 class SalesDataExporter:
     """销售单据数据导出器"""
 
-    def __init__(self, start_date=None, end_date=None, no_wechat=False, org_numbers=None, only=None, extra_fields=None, update_info=None):
+    def __init__(self, start_date=None, end_date=None, org_numbers=None, only=None, extra_fields=None, output_dir="."):
         self.kingdee_config = KINGDEE_CONFIG
-        self.wechat_webhook = (WECHAT_CONFIG or {}).get("webhook", "")
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
         self.base_url = self.kingdee_config["base_url"] + "/k3cloud/"
+        self.output_dir = Path(output_dir).expanduser().resolve()
 
-        self.no_wechat = no_wechat
-        self.update_info = update_info
         self.only = self._normalize_only(only)
         self.official_fields_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "官方字段说明")
         self.official_field_cache = {}
@@ -1472,9 +1473,10 @@ class SalesDataExporter:
 
     def save_all_to_excel(self, dataframes_dict):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"云星空经营数据_{self.period_name}_{timestamp}.xlsx"
+        filename = self.output_dir / f"云星空经营数据_{self.period_name}_{timestamp}.xlsx"
 
         try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
             with pd.ExcelWriter(filename, engine="openpyxl") as writer:
                 for sheet_name, df in dataframes_dict.items():
                     write_header = not self._is_kds_output_sheet(sheet_name)
@@ -1487,7 +1489,7 @@ class SalesDataExporter:
                         print(f"  ! sheet {sheet_name} 数值格式设置失败: {e}")
 
             print(f"  Excel文件已生成: {filename}")
-            return filename
+            return str(filename)
         except Exception as e:
             print(f"  保存Excel失败: {e}")
             return None
@@ -1561,58 +1563,6 @@ class SalesDataExporter:
             return df
         series = df[contactunit_name_col]
         return df[series.notna() & (series.astype(str).str.strip() != "")]
-
-    def send_summary_with_file(self, excel_file, bill_records):
-        if self.no_wechat:
-            print("  已跳过企业微信推送（--no-wechat）")
-            return True
-        if not self.wechat_webhook:
-            print("  已跳过企业微信推送（WECHAT_CONFIG.webhook 为空）")
-            return True
-
-        try:
-            file_size = os.path.getsize(excel_file)
-            file_size_mb = file_size / (1024 * 1024)
-
-            export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            summary_lines = [
-                "云星空经营数据导出完成",
-                "",
-                f"数据周期: {self.period_name}",
-                f"导出时间: {export_time}",
-                "",
-                "数据明细:",
-            ]
-
-            for idx, record in enumerate(bill_records, 1):
-                summary_lines.append(f"  {idx}. {record['name']}: {record['count']} 条")
-
-            summary_lines.append("")
-            summary_lines.append("文件信息:")
-            summary_lines.append(f"  文件名: {os.path.basename(excel_file)}")
-            summary_lines.append(f"  大小: {file_size_mb:.2f} MB")
-            if self.update_info:
-                summary_lines.append("")
-                summary_lines.append("版本提醒:")
-                summary_lines.append(f"  当前版本: {self.update_info['current_version']}")
-                summary_lines.append(f"  最新版本: {self.update_info['latest_version']}")
-                summary_lines.append(f"  更新地址: {self.update_info['url']}")
-
-            summary_msg = "\n".join(summary_lines)
-
-            payload = {"msgtype": "text", "text": {"content": summary_msg}}
-
-            response = requests.post(self.wechat_webhook, json=payload, headers={"Content-Type": "application/json"})
-            result = response.json()
-            if result.get("errcode") == 0:
-                print("  汇总消息发送成功")
-                return True
-            print(f"  汇总消息发送失败: {result}")
-            return False
-        except Exception as e:
-            print(f"  发送汇总消息异常: {e}")
-            return False
 
     def export_all_bills(self):
         print("=" * 60)
@@ -1717,8 +1667,6 @@ class SalesDataExporter:
                 print("  Excel生成失败")
                 return False
 
-            self.send_summary_with_file(excel_file, bill_records)
-
             print("\n生成的文件:")
             if os.path.exists(excel_file):
                 print(f"  - {os.path.abspath(excel_file)}")
@@ -1799,32 +1747,27 @@ def main():
     parser.add_argument("--org", help="组织编码；多个编码用英文逗号分隔，all 表示全部组织")
     parser.add_argument("--only", help="只导出指定 form_id 或中文名称；多个项目用英文逗号分隔")
     parser.add_argument("--fields", dest="extra_fields", help="追加字段，格式为 表单:字段；多个配置用英文逗号分隔")
+    parser.add_argument("--output-dir", default=".", help="导出文件保存目录，默认为当前目录")
     parser.add_argument("--list-orgs", action="store_true", help="导出组织列表后退出")
     parser.add_argument("--show-config", action="store_true", help="显示可导出的单据和报表后退出")
-    parser.add_argument("--no-wechat", action="store_true", help="不发送企业微信通知")
-    parser.add_argument("--check-update", action="store_true", help="只检查新版本，不执行导出")
-    parser.add_argument("--no-update-check", action="store_true", help="关闭启动时的版本检查")
+    parser.add_argument("--check-update", action="store_true", help="检查是否有新版本（仅此选项会访问 GitHub），不执行导出")
     args = parser.parse_args()
 
-    update_info = None
-    if not args.no_update_check:
-        update_info = check_for_update()
-        print_update_notice(update_info)
-
     if args.check_update:
+        update_info = check_for_update()
         if update_info:
-            return
-        print(f"当前已是最新版本: {APP_VERSION}")
+            print_update_notice(update_info)
+        else:
+            print(f"未发现新版本（当前版本: {APP_VERSION}；网络不可用时也会得到此结果）")
         return
 
     exporter = SalesDataExporter(
         start_date=args.start,
         end_date=args.end,
-        no_wechat=args.no_wechat,
         org_numbers=args.org,
         only=args.only,
         extra_fields=args.extra_fields,
-        update_info=update_info,
+        output_dir=args.output_dir,
     )
 
     if args.show_config:
@@ -1840,9 +1783,10 @@ def main():
         orgs = exporter.get_all_organizations()
         try:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"组织列表_{ts}.xlsx"
+            exporter.output_dir.mkdir(parents=True, exist_ok=True)
+            filename = exporter.output_dir / f"组织列表_{ts}.xlsx"
             pd.DataFrame(orgs).to_excel(filename, index=False)
-            print(f"组织列表已导出：{os.path.abspath(filename)}")
+            print(f"组织列表已导出：{filename}")
         except Exception as e:
             print(f"组织列表导出失败（将改为打印到控制台）：{e}")
             for o in orgs:
@@ -1856,4 +1800,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

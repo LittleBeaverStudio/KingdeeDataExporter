@@ -13,7 +13,6 @@ def _env(name: str, default: str = "") -> str:
 # - KINGDEE_ACCTID
 # - KINGDEE_USERNAME
 # - KINGDEE_PASSWORD
-# - WECHAT_WEBHOOK（可选）
 KINGDEE_CONFIG = {
     "base_url": _env("KINGDEE_BASE_URL", "https://your-k3cloud-host"),
     "acctid": _env("KINGDEE_ACCTID", ""),
@@ -34,9 +33,5 @@ KINGDEE_CONFIG = {
     #     "CurrUnitNumber": "JEDW01_SYS",
     #     "CycleType": 4,
     # },
-}
-
-WECHAT_CONFIG = {
-    "webhook": _env("WECHAT_WEBHOOK", ""),
 }
 

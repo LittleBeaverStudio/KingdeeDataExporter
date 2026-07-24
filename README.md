@@ -10,12 +10,11 @@
 - 查询全部组织编码
 - 追加官方字段说明中的字段
 - 导出全组织数据后再按条件筛选
-- 可选发送企业微信通知
 
 目前覆盖销售、采购、库存、应收应付、收付款、费用、资金、总账和三大财务报表等常用数据。实际清单以这条命令为准：
 
 ```bash
-python data_exporter.py --show-config --no-wechat
+python data_exporter.py --show-config
 ```
 
 ## 🚀 三步开始
@@ -39,18 +38,24 @@ KINGDEE_CONFIG = {
 }
 ```
 
-> 🔐 `config.py` 已加入 `.gitignore`。不要把真实账号、密码、账套 ID 或企业微信 Webhook 提交到公开仓库。
+> 🔐 `config.py` 已加入 `.gitignore`。不要把真实账号、密码或账套 ID 提交到公开仓库。
 
 ### 3. 运行导出
 
 ```bash
-python data_exporter.py --no-wechat
+python data_exporter.py
 ```
 
 完成后会在当前目录生成类似下面的文件：
 
 ```text
 云星空经营数据_2026年07月_20260715_120000.xlsx
+```
+
+经营数据可能包含敏感信息。建议保存到访问权限受控的目录：
+
+```bash
+python data_exporter.py --output-dir "D:/secure/kingdee-exports"
 ```
 
 ## 🧭 推荐使用顺序
@@ -60,13 +65,13 @@ python data_exporter.py --no-wechat
 ### 查看可导出的内容
 
 ```bash
-python data_exporter.py --show-config --no-wechat
+python data_exporter.py --show-config
 ```
 
 ### 获取组织编码
 
 ```bash
-python data_exporter.py --list-orgs --no-wechat
+python data_exporter.py --list-orgs
 ```
 
 生成的组织列表中：
@@ -77,7 +82,7 @@ python data_exporter.py --list-orgs --no-wechat
 ### 按期间和组织导出
 
 ```bash
-python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --no-wechat
+python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001
 ```
 
 ### 只导出一种单据或报表
@@ -85,25 +90,25 @@ python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --no-we
 使用中文名称：
 
 ```bash
-python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only 销售出库单 --no-wechat
+python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only 销售出库单
 ```
 
 使用 `form_id`：
 
 ```bash
-python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only SAL_OUTSTOCK --no-wechat
+python data_exporter.py --start 2026-06-01 --end 2026-06-30 --org ORG001 --only SAL_OUTSTOCK
 ```
 
 多个组织或多个项目使用英文逗号分隔：
 
 ```bash
-python data_exporter.py --org ORG001,ORG002 --only SAL_OUTSTOCK,AR_receivable --no-wechat
+python data_exporter.py --org ORG001,ORG002 --only SAL_OUTSTOCK,AR_receivable
 ```
 
 ### 全组织导出
 
 ```bash
-python data_exporter.py --org all --only 应收单 --no-wechat
+python data_exporter.py --org all --only 应收单
 ```
 
 > ⚠️ 全组织数据可能很多，建议同时使用 `--only` 缩小范围。
@@ -113,7 +118,7 @@ python data_exporter.py --org all --only 应收单 --no-wechat
 `官方字段说明/` 保存了各类单据和报表的字段参考。需要临时增加默认未导出的字段时，使用 `--fields`：
 
 ```bash
-python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEAMOUNT" --no-wechat
+python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEAMOUNT"
 ```
 
 Windows 控制台遇到中文参数编码问题时，优先使用字段 key。
@@ -191,7 +196,7 @@ https://github.com/LittleBeaverStudio/KingdeeDataExporter
 运行：
 
 ```bash
-python data_exporter.py --list-orgs --no-wechat
+python data_exporter.py --list-orgs
 ```
 
 ### 不知道 `--only` 填什么
@@ -199,22 +204,16 @@ python data_exporter.py --list-orgs --no-wechat
 运行：
 
 ```bash
-python data_exporter.py --show-config --no-wechat
-```
-
-### 无法访问 GitHub，启动较慢
-
-关闭更新检查：
-
-```bash
-python data_exporter.py --no-update-check --no-wechat
+python data_exporter.py --show-config
 ```
 
 ### 检查是否有新版本
 
 ```bash
-python data_exporter.py --check-update --no-wechat
+python data_exporter.py --check-update
 ```
+
+版本检查默认关闭，只有 `--check-update` 会访问 GitHub Releases API，日常导出不产生额外网络请求。
 
 ## 📁 主要文件
 

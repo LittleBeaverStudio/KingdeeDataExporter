@@ -1,804 +1,366 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.NeedUpDateFields：需要更新的字段，数组类型，格式：[key1,key2,...] （非必录）注（更新字段时Model数据包中必须设置内码，若更新单据体字段还需设置分录内码）
-     2.2.NeedReturnFields：需返回结果的字段集合，数组类型，格式：[key,entitykey.key,...]（非必录） 注（返回单据体字段格式：entitykey.key）
-     2.3.IsDeleteEntry：是否删除已存在的分录，布尔类型，默认true（非必录）
-     2.4.SubSystemId：表单所在的子系统内码，字符串类型（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认false（非必录）
-     2.6.IsEntryBatchFill：是否批量填充分录，默认true（非必录）
-     2.7.ValidateFlag：是否验证数据合法性标志，布尔类型，默认true（非必录）注（设为false时不对数据合法性进行校验）
-     2.8.NumberSearch：是否用编码搜索基础资料，布尔类型，默认true（非必录）
-     2.9.IsAutoAdjustField：是否自动调整JSON字段顺序，布尔类型，默认false（非必录）
-     2.10.InterationFlags：交互标志集合，字符串类型，分号分隔，格式："flag1;flag2;..."（非必录） 例如（允许负库存标识：STK_InvCheckResult）
-     2.11.IgnoreInterationFlag：是否允许忽略交互，布尔类型，默认true（非必录）
-     2.12.IsControlPrecision：是否控制精度，为true时对金额、单价和数量字段进行精度验证，默认false（非必录）
-     2.13.ValidateRepeatJson：校验Json数据包是否重复传入，一旦重复传入，接口调用失败，传true则启用校验，传false则不校验（非必录）
-     2.14.Model：表单数据包，JSON类型（必录）
-备注:
-1.示例Model数据包中字段顺序不建议改变，否则可能会有相互影响，如果出现字段值被覆盖或丢失，则可以尝试把字段顺序向后调整一下。
-2.示例Model数据包默认包含允许引入的字段，实际按需构建既可。
-3.如需创建关联关系，可参考https://club.kingdee.com/forum.php?mod=viewthread&tid=1394265 。
-4.对于重要API接口，应设置幂等性校验、设置对应候选键（唯一性字段）的唯一索引等防重调用机制，以防并发导致数据重复。
-
-二、返回结果：
-{"Result":{"ResponseStatus":{"ErrorCode":"","IsSuccess":"false","Errors":[{"FieldName":"","Message":"","DIndex":0}],"SuccessEntitys":[{"Id":"","Number":"","DIndex":0}],"SuccessMessages":[{"FieldName":"","Message":"","DIndex":0}],"MsgCode":""},"Id":"","Number":"","NeedReturnData":[{}]}}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/k3cloud/");
-client.Save("AP_PAYBILL","{"NeedUpDateFields":[],"NeedReturnFields":[],"IsDeleteEntry":"true","SubSystemId":"","IsVerifyBaseDataField":"false","IsEntryBatchFill":"true","ValidateFlag":"true","NumberSearch":"true","IsAutoAdjustField":"true","InterationFlags":"","IgnoreInterationFlag":"","IsControlPrecision":"false","ValidateRepeatJson":"true","Model":{"FID":0,"FBillNo":"","FBillTypeID":{"FNUMBER":""},"FDATE":"1900-01-01","FPAYORGID":{"FNumber":""},"FCURRENCYID":{"FNumber":""},"FCONTACTUNITTYPE":"","FCONTACTUNIT":{"FNumber":""},"FSETTLEORGID":{"FNumber":""},"FPURCHASEORGID":{"FNumber":""},"FRECTUNITTYPE":"","FRECTUNIT":{"FNumber":""},"FEXCHANGERATE":0,"FDOCUMENTSTATUS":"","FSETTLECUR":{"FNUMBER":""},"FSETTLERATE":0,"FDepartment":{"FNumber":""},"FISINIT":"false","FPURCHASEDEPTID":{"FNumber":""},"FPURCHASERGROUPID":{"FNumber":""},"FPURCHASERID":{"FNumber":""},"FScanPoint":{"FNUMBER":""},"FPRESETBASE1":{"FNUMBER":""},"FPRESETBASE2":{"FNUMBER":""},"FISSAMEORG":"false","FIsCredit":"false","FIsWriteOff":"false","FMatchMethodID":0,"FREALPAY":"false","FREMARK":"","FBookingDate":"1900-01-01","FTHIRDBILLNO":"","FWBSETTLENO":"","FISCARRYRATE":"false","FGYSHOPNAME":"","FGYCUSTOMERID":{"FNUMBER":""},"FMoreReceive":"false","FPRESETASSISTANT1":{"FNumber":""},"FPRESETASSISTANT2":{"FNumber":""},"FPRESETTEXT1":"","FPRESETTEXT2":"","FVirIsSameAcctOrg":"false","FBUSINESSTYPE":"","FCancelStatus":"","FSETTLEMAINBOOKID":{"FNUMBER":""},"FSHRID":"","FSourceBillNumber":"","F_TJKT_Base_83g_re5_ca9":{"FNUMBER":""},"FPAYBILLENTRY":[{"FEntryID":0,"FSETTLETYPEID":{"FNumber":""},"FPURPOSEID":{"FNumber":""},"FPAYITEMTYPE":"","FPAYITEM":"","FPAYAMOUNTFOR_E":0,"FPAYTOTALAMOUNTFOR":0,"FSETTLEDISTAMOUNTFOR":0,"FSETTLEPAYAMOUNTFOR":0,"F_TJKT_Base_apv_SRC_E":{"FNUMBER":""},"FOVERSHORTAGEFOR":0,"FHANDLINGCHARGEFOR":0,"FACCOUNTID":{"FNumber":""},"FINNERACCOUNTID":{"FNUMBER":""},"FOPPOSITECCOUNTNAME":"","FOPPOSITEBANKNAME":"","FCashAccount":{"FNUMBER":""},"FOPPOSITEBANKACCOUNT":"","FSETTLENO":"","FCOMMENT":"","FPURCHASEORDERID":0,"FOpenAddressRec":"","FProvince":{"FNAME":""},"FRecType":"","FCity":{"FNAME":""},"FCNAPS":"","FDistrict":{"FNAME":""},"FBankTypeRec":{"FNAME":""},"FCOSTID":{"FNUMBER":""},"FEXPENSEDEPTID_E":{"FNUMBER":""},"FPAYAMOUNT_E":0,"FPOSTDATE":"1900-01-01","FMATERIALID":{"FNUMBER":""},"FPRICEUNITID":{"FNumber":""},"FPRICE":0,"FPURCHASEORDERNO":"","FMATERIALSEQ":0,"FORDERENTRYID":0,"FRuZhangType":"","FPayType":"","FSwiftCode":"","FTaxAmt":0,"FNProvince":"","FNCity":"","FNDistrict":"","FDistrictCode":"","FBankDetail":{"FNUMBER":""},"FCountry":"","FSignature":"","FGYSALEORDERNO":"","FCertType":"","FNOTVERIFICATEAMOUNT":0,"FCertNum":"","FENTRYPREPAYORDERNO":"","FBankInvoice":"false","FNoteStatus":"","FUnique":0,"FTransacType":"","FMessageInstruct":"","FServiceLevel":"","FPayMethod":"","FCNYPayMethod":"","FExContractNo":"","FCollectionCurr":{"FNUMBER":""},"FCollectionAmount":0,"FReceiveBankBIC":"","FReceiveBankCode":"","FReceiveBranchCode":"","FServiceChargeBear":"","FServiceChargeNo":{"FNUMBER":""},"FServiceChargeBank":{"FNUMBER":""},"FServiceChargeCurr":{"FNUMBER":""},"FCNAPSNum":"","FCNYTransactType":{"FNUMBER":""},"FRMBPayMethod":"","FByAgentBank":"false","FAgentBankAcnt":{"FNUMBER":""},"FAgentBankName":"","FAgentBankArea":"","FAgentSWIFTCode":"","FAgentBankAddress":"","FReceiveBankClear":"","FReceiveBranchClear":"","FClearParameter":"","FOtherPartyAdress":"","FOtherPartyEmail":"","FLinkRowId":"","FOverseaPay":"false","FUse":"","FXDexchangeRate":0,"FRELATEREFUNDAMOUNT":0,"F_TJKT_Base_apv":{"FNUMBER":""},"FPayerEmail":"","FPayApplyName":"","FPayApplyPhone":"","FApplyPayDesc":"","FApplyDecType":"","FASSPURCHASEORDER":[{"FDetailID":0,"FASSPURORDERNO":"","FASSMATERIALID":{"FNUMBER":""},"FASSORDERENTRYID":0}]}],"FPAYBILLSRCENTRY":[{"FEntryID":0,"FSOURCETYPE":"","FSRCBILLNO":"","FTAXAMOUNT":0,"FPAYPURPOSEID":{"FNUMBER":""},"FSRCCOSTID":{"FNUMBER":""},"FEXPENSEDEPTID":{"FNUMBER":""},"FSRCPRICEUNITID":{"FNumber":""},"FSRCPRICE":0,"FSRCQTY":0,"FTAXAMOUNTLOC":0,"FPLANPAYAMOUNTLOC":0,"FSRCREMARK":"","FSrcLinkRowId":"","FREALPAYAMOUNTLOC":0,"FSETTLEAMOUNT":0,"F_TJKT_Base_apv_SRC":{"FNUMBER":""},"F_TJKT_Amount_ca9":0,"F_TJKT_Amount_uky":0,"F_TJKT_Amount_dvn":0,"F_TJKT_Amount_w5c":0,"F_TJKT_Amount_zc5":0,"F_TJKT_Amount_imu":0,"F_TJKT_Amount_1xj":0}],"FBILLPAYABLEENTRY":[{"FEntryID":0,"FINNERACCOUNTID_B":{"FNUMBER":""},"FBILLID":{"FNumber":""},"FUSEDAMOUNTFOR":0,"FBPPARAMOUNT":0,"FPARLEFTAMOUNT":0,"FUSEDAMOUNT":0,"FTempOrgId":{"FNumber":""}}],"FBILLRECEIVABLEENTRY":[{"FEntryID":0,"FInnerActId":{"FNUMBER":""},"FReceivebleBillId":{"FNUMBER":""},"FPayPurse":{"FNUMBER":""},"FReturnAmount":0,"FParAmount":0,"FReturnAmountStd":0,"FPARAMOUNTSTD":0,"FBCONTACTUNITTYPE":"","FBCONTACTUNIT":{"FNumber":""},"FIsEndorse":0,"FBankEndorse":"false","FEndorseeNo":"","FOppBankName":"","FEndorseeCnapsCode":""}],"FPAYBILLMORERECENTRY":[{"FEntryID":0,"FSETTLETYPEID_M":{"FNUMBER":""},"FRECTUNIT_M":{"FNumber":""},"FPAYAMOUNTFOR_M":0,"FPayAmount_M":0,"FACCOUNTID_M":{"FNUMBER":""},"FCOUNTRY_M":"","FNPROVINCE_M":"","FNCITY_M":"","FNDISTRICT_M":"","FBANKDETAIL_M":{"FNUMBER":""},"FOPPOSITEBANKNAME_M":"","FOPENADDRESSREC_M":"","FCNAPS_M":"","FOPPOSITEBANKACCOUNT_M":"","FOPPOSITECCOUNTNAME_M":"","FCOMMENT_M":"","FSWIFTCODE_M":"","FRECTYPE_M":"","FRUZHANGTYPE_M":"","FPAYTYPE_M":"","FURGENT_M":"false","FUrgentSign_M":"","FDistrictCode_M":"","FCertType_M":"","FCERTNUM_M":"","FSHRENTRYID":""}]}}");
-
-四、JSON格式数据：
-{
-    "NeedUpDateFields": [],
-    "NeedReturnFields": [],
-    "IsDeleteEntry": "true",
-    "SubSystemId": "",
-    "IsVerifyBaseDataField": "false",
-    "IsEntryBatchFill": "true",
-    "ValidateFlag": "true",
-    "NumberSearch": "true",
-    "IsAutoAdjustField": "true",
-    "InterationFlags": "",
-    "IgnoreInterationFlag": "",
-    "IsControlPrecision": "false",
-    "ValidateRepeatJson": "true",
-    "Model": {
-        "FID": 0,
-        "FBillNo": "",
-        "FBillTypeID": {
-            "FNUMBER": ""
-        },
-        "FDATE": "1900-01-01",
-        "FPAYORGID": {
-            "FNumber": ""
-        },
-        "FCURRENCYID": {
-            "FNumber": ""
-        },
-        "FCONTACTUNITTYPE": "",
-        "FCONTACTUNIT": {
-            "FNumber": ""
-        },
-        "FSETTLEORGID": {
-            "FNumber": ""
-        },
-        "FPURCHASEORGID": {
-            "FNumber": ""
-        },
-        "FRECTUNITTYPE": "",
-        "FRECTUNIT": {
-            "FNumber": ""
-        },
-        "FEXCHANGERATE": 0,
-        "FDOCUMENTSTATUS": "",
-        "FSETTLECUR": {
-            "FNUMBER": ""
-        },
-        "FSETTLERATE": 0,
-        "FDepartment": {
-            "FNumber": ""
-        },
-        "FISINIT": "false",
-        "FPURCHASEDEPTID": {
-            "FNumber": ""
-        },
-        "FPURCHASERGROUPID": {
-            "FNumber": ""
-        },
-        "FPURCHASERID": {
-            "FNumber": ""
-        },
-        "FScanPoint": {
-            "FNUMBER": ""
-        },
-        "FPRESETBASE1": {
-            "FNUMBER": ""
-        },
-        "FPRESETBASE2": {
-            "FNUMBER": ""
-        },
-        "FISSAMEORG": "false",
-        "FIsCredit": "false",
-        "FIsWriteOff": "false",
-        "FMatchMethodID": 0,
-        "FREALPAY": "false",
-        "FREMARK": "",
-        "FBookingDate": "1900-01-01",
-        "FTHIRDBILLNO": "",
-        "FWBSETTLENO": "",
-        "FISCARRYRATE": "false",
-        "FGYSHOPNAME": "",
-        "FGYCUSTOMERID": {
-            "FNUMBER": ""
-        },
-        "FMoreReceive": "false",
-        "FPRESETASSISTANT1": {
-            "FNumber": ""
-        },
-        "FPRESETASSISTANT2": {
-            "FNumber": ""
-        },
-        "FPRESETTEXT1": "",
-        "FPRESETTEXT2": "",
-        "FVirIsSameAcctOrg": "false",
-        "FBUSINESSTYPE": "",
-        "FCancelStatus": "",
-        "FSETTLEMAINBOOKID": {
-            "FNUMBER": ""
-        },
-        "FSHRID": "",
-        "FSourceBillNumber": "",
-        "F_TJKT_Base_83g_re5_ca9": {
-            "FNUMBER": ""
-        },
-        "FPAYBILLENTRY": [
-            {
-                "FEntryID": 0,
-                "FSETTLETYPEID": {
-                    "FNumber": ""
-                },
-                "FPURPOSEID": {
-                    "FNumber": ""
-                },
-                "FPAYITEMTYPE": "",
-                "FPAYITEM": "",
-                "FPAYAMOUNTFOR_E": 0,
-                "FPAYTOTALAMOUNTFOR": 0,
-                "FSETTLEDISTAMOUNTFOR": 0,
-                "FSETTLEPAYAMOUNTFOR": 0,
-                "F_TJKT_Base_apv_SRC_E": {
-                    "FNUMBER": ""
-                },
-                "FOVERSHORTAGEFOR": 0,
-                "FHANDLINGCHARGEFOR": 0,
-                "FACCOUNTID": {
-                    "FNumber": ""
-                },
-                "FINNERACCOUNTID": {
-                    "FNUMBER": ""
-                },
-                "FOPPOSITECCOUNTNAME": "",
-                "FOPPOSITEBANKNAME": "",
-                "FCashAccount": {
-                    "FNUMBER": ""
-                },
-                "FOPPOSITEBANKACCOUNT": "",
-                "FSETTLENO": "",
-                "FCOMMENT": "",
-                "FPURCHASEORDERID": 0,
-                "FOpenAddressRec": "",
-                "FProvince": {
-                    "FNAME": ""
-                },
-                "FRecType": "",
-                "FCity": {
-                    "FNAME": ""
-                },
-                "FCNAPS": "",
-                "FDistrict": {
-                    "FNAME": ""
-                },
-                "FBankTypeRec": {
-                    "FNAME": ""
-                },
-                "FCOSTID": {
-                    "FNUMBER": ""
-                },
-                "FEXPENSEDEPTID_E": {
-                    "FNUMBER": ""
-                },
-                "FPAYAMOUNT_E": 0,
-                "FPOSTDATE": "1900-01-01",
-                "FMATERIALID": {
-                    "FNUMBER": ""
-                },
-                "FPRICEUNITID": {
-                    "FNumber": ""
-                },
-                "FPRICE": 0,
-                "FPURCHASEORDERNO": "",
-                "FMATERIALSEQ": 0,
-                "FORDERENTRYID": 0,
-                "FRuZhangType": "",
-                "FPayType": "",
-                "FSwiftCode": "",
-                "FTaxAmt": 0,
-                "FNProvince": "",
-                "FNCity": "",
-                "FNDistrict": "",
-                "FDistrictCode": "",
-                "FBankDetail": {
-                    "FNUMBER": ""
-                },
-                "FCountry": "",
-                "FSignature": "",
-                "FGYSALEORDERNO": "",
-                "FCertType": "",
-                "FNOTVERIFICATEAMOUNT": 0,
-                "FCertNum": "",
-                "FENTRYPREPAYORDERNO": "",
-                "FBankInvoice": "false",
-                "FNoteStatus": "",
-                "FUnique": 0,
-                "FTransacType": "",
-                "FMessageInstruct": "",
-                "FServiceLevel": "",
-                "FPayMethod": "",
-                "FCNYPayMethod": "",
-                "FExContractNo": "",
-                "FCollectionCurr": {
-                    "FNUMBER": ""
-                },
-                "FCollectionAmount": 0,
-                "FReceiveBankBIC": "",
-                "FReceiveBankCode": "",
-                "FReceiveBranchCode": "",
-                "FServiceChargeBear": "",
-                "FServiceChargeNo": {
-                    "FNUMBER": ""
-                },
-                "FServiceChargeBank": {
-                    "FNUMBER": ""
-                },
-                "FServiceChargeCurr": {
-                    "FNUMBER": ""
-                },
-                "FCNAPSNum": "",
-                "FCNYTransactType": {
-                    "FNUMBER": ""
-                },
-                "FRMBPayMethod": "",
-                "FByAgentBank": "false",
-                "FAgentBankAcnt": {
-                    "FNUMBER": ""
-                },
-                "FAgentBankName": "",
-                "FAgentBankArea": "",
-                "FAgentSWIFTCode": "",
-                "FAgentBankAddress": "",
-                "FReceiveBankClear": "",
-                "FReceiveBranchClear": "",
-                "FClearParameter": "",
-                "FOtherPartyAdress": "",
-                "FOtherPartyEmail": "",
-                "FLinkRowId": "",
-                "FOverseaPay": "false",
-                "FUse": "",
-                "FXDexchangeRate": 0,
-                "FRELATEREFUNDAMOUNT": 0,
-                "F_TJKT_Base_apv": {
-                    "FNUMBER": ""
-                },
-                "FPayerEmail": "",
-                "FPayApplyName": "",
-                "FPayApplyPhone": "",
-                "FApplyPayDesc": "",
-                "FApplyDecType": "",
-                "FASSPURCHASEORDER": [
-                    {
-                        "FDetailID": 0,
-                        "FASSPURORDERNO": "",
-                        "FASSMATERIALID": {
-                            "FNUMBER": ""
-                        },
-                        "FASSORDERENTRYID": 0
-                    }
-                ]
-            }
-        ],
-        "FPAYBILLSRCENTRY": [
-            {
-                "FEntryID": 0,
-                "FSOURCETYPE": "",
-                "FSRCBILLNO": "",
-                "FTAXAMOUNT": 0,
-                "FPAYPURPOSEID": {
-                    "FNUMBER": ""
-                },
-                "FSRCCOSTID": {
-                    "FNUMBER": ""
-                },
-                "FEXPENSEDEPTID": {
-                    "FNUMBER": ""
-                },
-                "FSRCPRICEUNITID": {
-                    "FNumber": ""
-                },
-                "FSRCPRICE": 0,
-                "FSRCQTY": 0,
-                "FTAXAMOUNTLOC": 0,
-                "FPLANPAYAMOUNTLOC": 0,
-                "FSRCREMARK": "",
-                "FSrcLinkRowId": "",
-                "FREALPAYAMOUNTLOC": 0,
-                "FSETTLEAMOUNT": 0,
-                "F_TJKT_Base_apv_SRC": {
-                    "FNUMBER": ""
-                },
-                "F_TJKT_Amount_ca9": 0,
-                "F_TJKT_Amount_uky": 0,
-                "F_TJKT_Amount_dvn": 0,
-                "F_TJKT_Amount_w5c": 0,
-                "F_TJKT_Amount_zc5": 0,
-                "F_TJKT_Amount_imu": 0,
-                "F_TJKT_Amount_1xj": 0
-            }
-        ],
-        "FBILLPAYABLEENTRY": [
-            {
-                "FEntryID": 0,
-                "FINNERACCOUNTID_B": {
-                    "FNUMBER": ""
-                },
-                "FBILLID": {
-                    "FNumber": ""
-                },
-                "FUSEDAMOUNTFOR": 0,
-                "FBPPARAMOUNT": 0,
-                "FPARLEFTAMOUNT": 0,
-                "FUSEDAMOUNT": 0,
-                "FTempOrgId": {
-                    "FNumber": ""
-                }
-            }
-        ],
-        "FBILLRECEIVABLEENTRY": [
-            {
-                "FEntryID": 0,
-                "FInnerActId": {
-                    "FNUMBER": ""
-                },
-                "FReceivebleBillId": {
-                    "FNUMBER": ""
-                },
-                "FPayPurse": {
-                    "FNUMBER": ""
-                },
-                "FReturnAmount": 0,
-                "FParAmount": 0,
-                "FReturnAmountStd": 0,
-                "FPARAMOUNTSTD": 0,
-                "FBCONTACTUNITTYPE": "",
-                "FBCONTACTUNIT": {
-                    "FNumber": ""
-                },
-                "FIsEndorse": 0,
-                "FBankEndorse": "false",
-                "FEndorseeNo": "",
-                "FOppBankName": "",
-                "FEndorseeCnapsCode": ""
-            }
-        ],
-        "FPAYBILLMORERECENTRY": [
-            {
-                "FEntryID": 0,
-                "FSETTLETYPEID_M": {
-                    "FNUMBER": ""
-                },
-                "FRECTUNIT_M": {
-                    "FNumber": ""
-                },
-                "FPAYAMOUNTFOR_M": 0,
-                "FPayAmount_M": 0,
-                "FACCOUNTID_M": {
-                    "FNUMBER": ""
-                },
-                "FCOUNTRY_M": "",
-                "FNPROVINCE_M": "",
-                "FNCITY_M": "",
-                "FNDISTRICT_M": "",
-                "FBANKDETAIL_M": {
-                    "FNUMBER": ""
-                },
-                "FOPPOSITEBANKNAME_M": "",
-                "FOPENADDRESSREC_M": "",
-                "FCNAPS_M": "",
-                "FOPPOSITEBANKACCOUNT_M": "",
-                "FOPPOSITECCOUNTNAME_M": "",
-                "FCOMMENT_M": "",
-                "FSWIFTCODE_M": "",
-                "FRECTYPE_M": "",
-                "FRUZHANGTYPE_M": "",
-                "FPAYTYPE_M": "",
-                "FURGENT_M": "false",
-                "FUrgentSign_M": "",
-                "FDistrictCode_M": "",
-                "FCertType_M": "",
-                "FCERTNUM_M": "",
-                "FSHRENTRYID": ""
-            }
-        ]
-    }
-}
-
-五、字段说明：
-单据头：FBillHead 
-	 实体主键：FID 
-	 单据编号：FBillNo 
-	 单据状态：FDOCUMENTSTATUS  (必填项)
-	 创建人：FCreatorId 
-	 审核人：FAPPROVERID 
-	 创建日期：FCreateDate 
-	 结算组织：FSETTLEORGID 
-	 审核日期：FApproveDate 
-	 采购组织：FPURCHASEORGID 
-	 表头-应付金额：FPAYTOTALAMOUNTFOR_H 
-	 币别：FCURRENCYID  (必填项)
-	 业务日期：FDATE  (必填项)
-	 修改日期：FModifyDate 
-	 修改人：FModifierId 
-	 核销状态：FWRITTENOFFSTATUS 
-	 单据类型：FBillTypeID  (必填项)
-	 采购员：FPURCHASERID 
-	 采购组：FPURCHASERGROUPID 
-	 采购部门：FPURCHASEDEPTID 
-	 表头-实付金额：FREALPAYAMOUNTFOR_H 
-	 会计核算体系：FACCOUNTSYSTEM 
-	 作废人：FCancellerId 
-	 作废状态：FCancelStatus  (必填项)
-	 作废日期：FCancelDate 
-	 往来单位类型：FCONTACTUNITTYPE  (必填项)
-	 往来单位：FCONTACTUNIT  (必填项)
-	 收款单位类型：FRECTUNITTYPE  (必填项)
-	 收款单位：FRECTUNIT  (必填项)
-	 来源系统：FSOURCESYSTEM 
-	 业务类型：FBUSINESSTYPE  (必填项)
-	 是否期初单据：FISINIT 
-	 部门：FDepartment 
-	 付款组织：FPAYORGID  (必填项)
-	 是否相同组织：FISSAMEORG 
-	 是否信贷业务：FIsCredit 
-	 结算汇率：FSETTLERATE 
-	 付款金额：FPAYAMOUNTFOR 
-	 汇率类型：FEXCHANGETYPE 
-	 本位币：FMAINBOOKID 
-	 结算币别：FSETTLECUR  (必填项)
-	 表头-应付金额本位币：FPAYTOTALAMOUNT_H 
-	 表头-付款金额本位币：FPAYAMOUNT 
-	 表头-实付金额本位币：FREALPAYAMOUNT_H 
-	 汇率：FEXCHANGERATE 
-	 扫描点：FScanPoint 
-	 是否转销：FIsWriteOff 
-	 核销方式：FMatchMethodID 
-	 实报实付：FREALPAY 
-	 备注：FREMARK 
-	 期望付款日期：FBookingDate 
-	 第三方单据编号：FTHIRDBILLNO 
-	 流水号：FWBSETTLENO 
-	 结算本位币：FSETTLEMAINBOOKID  (必填项)
-	 结算汇率类型：FSETTLEEXCHANGETYPE 
-	 现购：FISCASHPURCHASE 
-	 转出往来单位：FOUTCONTACTID 
-	 转出往来单位类型：FOUTCONTACTTYPE 
-	 是否其他预付：FIsBorrow 
-	 来源交易明细：FISFROMTRADEBANK 
-	 管易财务流水内码：FGYACCOUNTWATERID 
-	 是否下推携带汇率到结算汇率：FISCARRYRATE 
-	 管易对应店铺：FGYSHOPNAME 
-	 管易对应客户：FGYCUSTOMERID 
-	 多收款人：FMoreReceive 
-	 预设辅助资料字段1：FPRESETASSISTANT1 
-	 预设辅助资料字段2：FPRESETASSISTANT2 
-	 预设文本字段1：FPRESETTEXT1 
-	 预设文本字段2：FPRESETTEXT2 
-	 预设基础资料字段1：FPRESETBASE1 
-	 预设基础资料字段2：FPRESETBASE2 
-	 是否同一核算组织：FVirIsSameAcctOrg 
-	 s-HR发放单唯一标识：FSHRID 
-	 最新付款交易时间：FLastFinishTime 
-	 来源票据号：FSourceBillNumber 
-	 项目：F_TJKT_Base_83g_re5_ca9 
-付款单明细：FPAYBILLENTRY 
-	 实体主键：FEntryID 
-	 结算方式：FSETTLETYPEID  (必填项)
-	 折后金额：FSETTLEPAYAMOUNTFOR 
-	 现金折扣：FSETTLEDISTAMOUNTFOR 
-	 表体-应付金额：FPAYTOTALAMOUNTFOR 
-	 折后金额本位币：FSETTLEPAYAMOUNT 
-	 现金折扣本位币：FSETTLEDISTAMOUNT 
-	 表体-应付金额本位币：FPAYTOTALAMOUNT 
-	 表体明细-核销状态：FWRITTENOFFSTATUS_D 
-	 表体明细-已核销金额：FWRITTENOFFAMOUNTFOR_D 
-	 对方银行账号：FOPPOSITEBANKACCOUNT 
-	 备注：FCOMMENT 
-	 对方账户名称：FOPPOSITECCOUNTNAME 
-	 采购订单：FPAYITEM 
-	 手续费：FHANDLINGCHARGEFOR 
-	 手续费本位币：FHANDLINGCHARGE 
-	 表体-实付金额：FREALPAYAMOUNTFOR_D 
-	 表体-实付金额本位币：FREALPAYAMOUNT_D 
-	 关联金额：FASSTOTALAMOUNTFOR 
-	 预付项目类型：FPAYITEMTYPE 
-	 采购订单ID：FPURCHASEORDERID 
-	 我方银行账号：FACCOUNTID 
-	 我方账户名称：FPAYACCOUNTNAME 
-	 我方开户行：FPAYBANKID 
-	 对方开户行：FOPPOSITEBANKNAME 
-	 结算号：FSETTLENO 
-	 勾对：FBLEND 
-	 付款用途：FPURPOSEID  (必填项)
-	 开户行地址：FOpenAddressRec 
-	 收款类型：FRecType  (必填项)
-	 联行号：FCNAPS 
-	 收款银行（作废）：FBankTypeRec 
-	 省（作废）：FProvince 
-	 城市（作废）：FCity 
-	 地区（作废）：FDistrict 
-	 加急(作废)：FUrgent 
-	 提交银行状态：FSubmitStatus 
-	 提交/撤销银行人：FSubmitUser 
-	 提交/撤销银行时间：FSubmitBankTime 
-	 银行处理状态：FBankStatus 
-	 银行状态码：FBankCode 
-	 内部账号：FINNERACCOUNTID 
-	 内部账户名称：FINNERACCOUNTNAME 
-	 费用项目：FCOSTID 
-	 退款关联金额：FRefundAmount 
-	 现金账号：FCashAccount 
-	 付款金额：FPAYAMOUNTFOR_E 
-	 付款金额本位币：FPAYAMOUNT_E 
-	 是否登账：FISPOST 
-	 登账日期：FPOSTDATE  (必填项)
-	 物料编码：FMATERIALID 
-	 物料名称：FMATERIALNAME 
-	 采购订单号：FPURCHASEORDERNO 
-	 采购订单行号：FMATERIALSEQ 
-	 采购订单明细内码：FORDERENTRYID 
-	 入账类型：FRuZhangType  (必填项)
-	 银企处理详细信息：FEBMSG 
-	 长短款：FOVERSHORTAGEFOR 
-	 长短款本位币：FOVERSHORTAGE 
-	 费用承担部门：FEXPENSEDEPTID_E 
-	 支付类型：FPayType  (必填项)
-	 计价单位：FPRICEUNITID 
-	 含税单价：FPRICE 
-	 数量：FQTY 
-	 退款关联数量：FREFUNDQTY 
-	 SwiftCode：FSwiftCode 
-	 已核销金额本位币：FWRITTENOFFAMOUNT 
-	 流水号/对账码：FCHECKCODE 
-	 保证金转货款金额：FTOPAYMENTAMOUNTFOR 
-	 税额：FTaxAmt 
-	 省：FNProvince 
-	 城市：FNCity 
-	 地区：FNDistrict 
-	 银行网点：FBankDetail 
-	 国别：FCountry 
-	 签名：FSignature 
-	 管易销售订单号：FGYSALEORDERNO 
-	 错误码：FReturnMsg 
-	 付款交易时间：FFinishTime 
-	 地区码：FDistrictCode 
-	 银行状态描述：FBANKMSG 
-	 付款回调时间：FResponseTme 
-	 请求时间：FRequestTime 
-	 收款人证件类型：FCertType 
-	 收款人证件号码：FCertNum 
-	 银企开票：FBankInvoice 
-	 电票状态：FNoteStatus 
-	 未核销金额：FNOTVERIFICATEAMOUNT 
-	 预付采购订单号：FENTRYPREPAYORDERNO 
-	 已电票开票：FIsInvoice 
-	 行唯一标志：FUnique 
-	 交易类型：FTransacType 
-	 电文指示：FMessageInstruct 
-	 服务级别：FServiceLevel 
-	 付款方式：FPayMethod 
-	 CNY付款方式：FCNYPayMethod 
-	 兑换合约号：FExContractNo 
-	 收款币别：FCollectionCurr 
-	 收款金额：FCollectionAmount 
-	 收款银行BIC：FReceiveBankBIC 
-	 收款银行代码：FReceiveBankCode 
-	 收款支行代码：FReceiveBranchCode 
-	 手续费承担方：FServiceChargeBear 
-	 手续费账号：FServiceChargeNo 
-	 手续费账号银行：FServiceChargeBank 
-	 手续费币别：FServiceChargeCurr 
-	 CNAPSNum：FCNAPSNum 
-	 人民币交易种类：FCNYTransactType 
-	 人民币付款方式：FRMBPayMethod 
-	 通过代理行完成：FByAgentBank 
-	 代理行账号：FAgentBankAcnt 
-	 代理行名称：FAgentBankName 
-	 代理行国家\地区：FAgentBankArea 
-	 SWIFT Code(代理行)：FAgentSWIFTCode 
-	 代理行地址：FAgentBankAddress 
-	 收款银行本地清算码：FReceiveBankClear 
-	 收款人本地清算分行代码：FReceiveBranchClear 
-	 清算要求参数：FClearParameter 
-	 对方地址：FOtherPartyAdress 
-	 对方邮箱：FOtherPartyEmail 
-	 境外支付：FOverseaPay 
-	 关联行ID：FLinkRowId 
-	 系统支付用途：FUse 
-	 协定汇率：FXDexchangeRate 
-	 已退款金额：FRELATEREFUNDAMOUNT 
-	 加急标志：FUrgentSign 
-	 付款通知邮箱：FPayerEmail 
-	 申请人姓名：FPayApplyName 
-	 申请人联系电话：FPayApplyPhone 
-	 申请交易附言：FApplyPayDesc 
-	 申报标识：FApplyDecType 
-	 项目：F_TJKT_Base_apv_SRC_E 
-	 项目：F_TJKT_Base_apv 
-付款单源单明细：FPAYBILLSRCENTRY 
-	 实体主键：FEntryID 
-	 应付金额：FAFTTAXTOTALAMOUNT 
-	 立账日期：FOPENACCOUNTDATE 
-	 本次付款金额：FREALPAYAMOUNT_S 
-	 结算方式：FSRCSETTLETYPEID 
-	 源单内码：FSRCBILLID 
-	 源单行内码：FSRCROWID 
-	 源单行号：FSRCSEQ 
-	 到期日：FEXPIRY 
-	 计划付款金额：FPLANPAYAMOUNT 
-	 源单币别：FSRCCURRENCYID 
-	 源单类型：FSOURCETYPE 
-	 源单编号：FSRCBILLNO 
-	 付款用途：FPAYPURPOSEID 
-	 计划付利息金额：FPlanInstAmount 
-	 本次还本金额：FRealPclAmount 
-	 本次付利息金额：FRealInstAmount 
-	 费用项目：FSRCCOSTID 
-	 采购订单编号：FPURORDERNO 
-	 物料编码：FSRCMATERIALID 
-	 物料名称：FSRCMATERIALNAME 
-	 采购订单行号：FSRCMATERIALSEQ 
-	 采购订单明细内码：FSRCORDERENTRYID 
-	 税额：FTAXAMOUNT 
-	 税额本位币：FTAXAMOUNTLOC 
-	 费用承担部门：FEXPENSEDEPTID 
-	 应付款金额本位币：FPLANPAYAMOUNTLOC 
-	 本次付款金额本位币：FREALPAYAMOUNTLOC 
-	 预付采购订单号：FPREPAYORDERNO 
-	 备注：FSRCREMARK 
-	 计价单位：FSRCPRICEUNITID 
-	 含税单价：FSRCPRICE 
-	 数量：FSRCQTY 
-	 结算金额：FSETTLEAMOUNT 
-	 关联行ID：FSrcLinkRowId 
-	 项目：F_TJKT_Base_apv_SRC 
-	 个人社保：F_TJKT_Amount_ca9 
-	 个人公积金：F_TJKT_Amount_uky 
-	 个人所得税：F_TJKT_Amount_dvn 
-	 税前工资：F_TJKT_Amount_w5c 
-	 企业部分：F_TJKT_Amount_zc5 
-	 个人部分：F_TJKT_Amount_imu 
-	 合计金额：F_TJKT_Amount_1xj 
-关联采购订单：FASSPURCHASEORDER 
-	 实体主键：FDetailID 
-	 关联单据ID：FASSBILLID 
-	 关联单据编号：FASSBILLNO 
-	 关联金额：FASSAMOUNTFOR 
-	 预付预收已核销金额：FPREMATCHAMOUNTFOR 
-	 关联单据编号（按订单）：FASSPURORDERNO 
-	 关联物料：FASSMATERIALID 
-	 关联订单明细内码：FASSORDERENTRYID 
-应付票据明细：FBILLPAYABLEENTRY 
-	 实体主键：FEntryID 
-	 票据流水号：FBILLID 
-	 票据类型：FKDBPBILLTYPE 
-	 到期日：FKDBPDUEDATE 
-	 结算状态：FKDBPSETTLESTATUS 
-	 未占用票面金额：FPARLEFTAMOUNTFOR 
-	 当前占用金额：FUSEDAMOUNTFOR 
-	 内部账户：FINNERACCOUNTID_B 
-	 票据组织(临时用的)：FTempOrgId 
-	 票据（包）号：FKDBPBILLNO 
-	 票面金额：FKDBPPARAMOUNT 
-	 票面金额本位币：FBPPARAMOUNT 
-	 未占用票面金额本位币：FPARLEFTAMOUNT 
-	 当前占用金额本位币：FUSEDAMOUNT 
-	 电票状态：FPNoteStatus 
-	 票据号码：FFRCBILLNUMBERPT 
-应收票据背书：FBILLRECEIVABLEENTRY 
-	 实体主键：FEntryID 
-	 内部账户：FInnerActId 
-	 票据流水号：FReceivebleBillId 
-	 付款用途：FPayPurse 
-	 背书金额：FReturnAmount 
-	 票据类型：FKDBPARBILLTYPE 
-	 客户：FKDBPCUSTOMER 
-	 票面金额：FParAmount 
-	 往来单位类型：FBCONTACTUNITTYPE 
-	 往来单位：FBCONTACTUNIT 
-	 票面金额本位币：FPARAMOUNTSTD 
-	 背书金额本位币：FReturnAmountStd 
-	 票据（包）号：FKDBPARBILLNO 
-	 已电票背书：FIsEndorse 
-	 银企背书：FBankEndorse 
-	 银行处理状态：FRBankStatus 
-	 电票状态：FRNoteStatus 
-	 被背书人账号：FEndorseeNo 
-	 被背书人开户行行名：FOppBankName 
-	 被背书人开户行行号：FEndorseeCnapsCode 
-	 票据（包）号：FTICKETNO 
-	 等分化票据：FEquidiffBill 
-	 子票包开始序号：FSTARTNO 
-	 子票据终止序号：FENDNO 
-	 新电票状态：FNEWNOTESTATUS 
-	 票据流通状态：FCIRSTATUS 
-	 票据来源：FTICKETFROM 
-	 票据号码：FFRCBILLNUMBERPRT 
-	 自动拆分：FISAUTOSPLIT 
-多收款人：FPAYBILLMORERECENTRY 
-	 实体主键：FEntryID 
-	 结算方式：FSETTLETYPEID_M 
-	 应付金额：FPAYAMOUNTFOR_M 
-	 我方银行账号：FACCOUNTID_M 
-	 我方账户名称：FPAYACCOUNTNAME_M 
-	 我方开户行：FPAYBANKID_M 
-	 银行网点：FBANKDETAIL_M 
-	 国别：FCOUNTRY_M 
-	 省：FNPROVINCE_M 
-	 城市：FNCITY_M 
-	 地区：FNDISTRICT_M 
-	 对方开户行：FOPPOSITEBANKNAME_M 
-	 开户行地址：FOPENADDRESSREC_M 
-	 联行号：FCNAPS_M 
-	 对方银行账号：FOPPOSITEBANKACCOUNT_M 
-	 对方账户名称：FOPPOSITECCOUNTNAME_M 
-	 备注：FCOMMENT_M 
-	 SwiftCode：FSWIFTCODE_M 
-	 收款方类型：FRECTYPE_M 
-	 入账类型：FRUZHANGTYPE_M 
-	 支付类型：FPAYTYPE_M 
-	 加急(作废)：FURGENT_M 
-	 提交银行状态：FSUBMITSTATUS_M 
-	 银行处理状态：FBANKSTATUS_M 
-	 提交/撤销银行人：FSUBMITUSER_M 
-	 提交/撤销银行时间：FSUBMITBANKTIME_M 
-	 银行状态码：FBANKCODE_M 
-	 银企处理详细信息：FEBMSG_M 
-	 银行状态描述：FBANKMSG_M 
-	 流水号/对账码：FCHECKCODE_M 
-	 签名：FSIGNATURE_M 
-	 付款金额：FPayAmount_M 
-	 错误码：FRETURNMSG_M 
-	 付款交易时间：FFinishTime_M 
-	 请求时间：FREQUESTTIME_M 
-	 付款回调时间：FRESPONSETME_M 
-	 地区码：FDistrictCode_M 
-	 收款人证件类型：FCertType_M 
-	 收款人证件号码：FCERTNUM_M 
-	 s-HR发放单明细唯一标识：FSHRENTRYID 
-	 已退回s-HR：FRETURNSHR 
-	 收款单位：FRECTUNIT_M 
-	 加急标志：FUrgentSign_M 
-关联关系表：FPAYBILLSRCENTRY_Link 
-	 实体主键：FLinkId 
-	 业务流程图：FPAYBILLSRCENTRY_Link_FFlowId 
-	 推进路线：FPAYBILLSRCENTRY_Link_FFlowLineId 
-	 转换规则：FPAYBILLSRCENTRY_Link_FRuleId 
-	 源单表内码：FPAYBILLSRCENTRY_Link_FSTableId 
-	 源单表：FPAYBILLSRCENTRY_Link_FSTableName 
-	 源单内码：FPAYBILLSRCENTRY_Link_FSBillId 
-	 源单分录内码：FPAYBILLSRCENTRY_Link_FSId 
-	 原始携带量：FPAYBILLSRCENTRY_Link_FREALPAYAMOUNT_SOld 
-	 修改携带量：FPAYBILLSRCENTRY_Link_FREALPAYAMOUNT_S 
-	 迁移图：FPAYBILLSRCENTRY_Link_FLnkTrackerId 
-	 上游状态：FPAYBILLSRCENTRY_Link_FLnkSState 
-	 数量FLnk：FPAYBILLSRCENTRY_Link_FLnkAmount 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+单据头: FBillHead
+实体主键: FID
+单据编号: FBillNo
+单据状态: FDOCUMENTSTATUS
+创建人: FCreatorId
+审核人: FAPPROVERID
+创建日期: FCreateDate
+结算组织: FSETTLEORGID
+审核日期: FApproveDate
+采购组织: FPURCHASEORGID
+表头-应付金额: FPAYTOTALAMOUNTFOR_H
+币别: FCURRENCYID
+业务日期: FDATE
+修改日期: FModifyDate
+修改人: FModifierId
+核销状态: FWRITTENOFFSTATUS
+单据类型: FBillTypeID
+采购员: FPURCHASERID
+采购组: FPURCHASERGROUPID
+采购部门: FPURCHASEDEPTID
+表头-实付金额: FREALPAYAMOUNTFOR_H
+会计核算体系: FACCOUNTSYSTEM
+作废人: FCancellerId
+作废状态: FCancelStatus
+作废日期: FCancelDate
+往来单位类型: FCONTACTUNITTYPE
+往来单位: FCONTACTUNIT
+收款单位类型: FRECTUNITTYPE
+收款单位: FRECTUNIT
+来源系统: FSOURCESYSTEM
+业务类型: FBUSINESSTYPE
+是否期初单据: FISINIT
+部门: FDepartment
+付款组织: FPAYORGID
+是否相同组织: FISSAMEORG
+是否信贷业务: FIsCredit
+结算汇率: FSETTLERATE
+付款金额: FPAYAMOUNTFOR
+汇率类型: FEXCHANGETYPE
+本位币: FMAINBOOKID
+结算币别: FSETTLECUR
+表头-应付金额本位币: FPAYTOTALAMOUNT_H
+表头-付款金额本位币: FPAYAMOUNT
+表头-实付金额本位币: FREALPAYAMOUNT_H
+汇率: FEXCHANGERATE
+扫描点: FScanPoint
+是否转销: FIsWriteOff
+核销方式: FMatchMethodID
+实报实付: FREALPAY
+备注: FREMARK
+期望付款日期: FBookingDate
+第三方单据编号: FTHIRDBILLNO
+流水号: FWBSETTLENO
+结算本位币: FSETTLEMAINBOOKID
+结算汇率类型: FSETTLEEXCHANGETYPE
+现购: FISCASHPURCHASE
+转出往来单位: FOUTCONTACTID
+转出往来单位类型: FOUTCONTACTTYPE
+是否其他预付: FIsBorrow
+来源交易明细: FISFROMTRADEBANK
+管易财务流水内码: FGYACCOUNTWATERID
+是否下推携带汇率到结算汇率: FISCARRYRATE
+管易对应店铺: FGYSHOPNAME
+管易对应客户: FGYCUSTOMERID
+多收款人: FMoreReceive
+预设辅助资料字段1: FPRESETASSISTANT1
+预设辅助资料字段2: FPRESETASSISTANT2
+预设文本字段1: FPRESETTEXT1
+预设文本字段2: FPRESETTEXT2
+预设基础资料字段1: FPRESETBASE1
+预设基础资料字段2: FPRESETBASE2
+是否同一核算组织: FVirIsSameAcctOrg
+s-HR发放单唯一标识: FSHRID
+最新付款交易时间: FLastFinishTime
+来源票据号: FSourceBillNumber
+项目: F_TJKT_Base_83g_re5_ca9
+付款单明细: FPAYBILLENTRY
+实体主键: FEntryID
+结算方式: FSETTLETYPEID
+折后金额: FSETTLEPAYAMOUNTFOR
+现金折扣: FSETTLEDISTAMOUNTFOR
+表体-应付金额: FPAYTOTALAMOUNTFOR
+折后金额本位币: FSETTLEPAYAMOUNT
+现金折扣本位币: FSETTLEDISTAMOUNT
+表体-应付金额本位币: FPAYTOTALAMOUNT
+表体明细-核销状态: FWRITTENOFFSTATUS_D
+表体明细-已核销金额: FWRITTENOFFAMOUNTFOR_D
+对方银行账号: FOPPOSITEBANKACCOUNT
+备注: FCOMMENT
+对方账户名称: FOPPOSITECCOUNTNAME
+采购订单: FPAYITEM
+手续费: FHANDLINGCHARGEFOR
+手续费本位币: FHANDLINGCHARGE
+表体-实付金额: FREALPAYAMOUNTFOR_D
+表体-实付金额本位币: FREALPAYAMOUNT_D
+关联金额: FASSTOTALAMOUNTFOR
+预付项目类型: FPAYITEMTYPE
+采购订单ID: FPURCHASEORDERID
+我方银行账号: FACCOUNTID
+我方账户名称: FPAYACCOUNTNAME
+我方开户行: FPAYBANKID
+对方开户行: FOPPOSITEBANKNAME
+结算号: FSETTLENO
+勾对: FBLEND
+付款用途: FPURPOSEID
+开户行地址: FOpenAddressRec
+收款类型: FRecType
+联行号: FCNAPS
+收款银行（作废）: FBankTypeRec
+省（作废）: FProvince
+城市（作废）: FCity
+地区（作废）: FDistrict
+加急(作废): FUrgent
+提交银行状态: FSubmitStatus
+提交/撤销银行人: FSubmitUser
+提交/撤销银行时间: FSubmitBankTime
+银行处理状态: FBankStatus
+银行状态码: FBankCode
+内部账号: FINNERACCOUNTID
+内部账户名称: FINNERACCOUNTNAME
+费用项目: FCOSTID
+退款关联金额: FRefundAmount
+现金账号: FCashAccount
+付款金额: FPAYAMOUNTFOR_E
+付款金额本位币: FPAYAMOUNT_E
+是否登账: FISPOST
+登账日期: FPOSTDATE
+物料编码: FMATERIALID
+物料名称: FMATERIALNAME
+采购订单号: FPURCHASEORDERNO
+采购订单行号: FMATERIALSEQ
+采购订单明细内码: FORDERENTRYID
+入账类型: FRuZhangType
+银企处理详细信息: FEBMSG
+长短款: FOVERSHORTAGEFOR
+长短款本位币: FOVERSHORTAGE
+费用承担部门: FEXPENSEDEPTID_E
+支付类型: FPayType
+计价单位: FPRICEUNITID
+含税单价: FPRICE
+数量: FQTY
+退款关联数量: FREFUNDQTY
+SwiftCode: FSwiftCode
+已核销金额本位币: FWRITTENOFFAMOUNT
+流水号/对账码: FCHECKCODE
+保证金转货款金额: FTOPAYMENTAMOUNTFOR
+税额: FTaxAmt
+省: FNProvince
+城市: FNCity
+地区: FNDistrict
+银行网点: FBankDetail
+国别: FCountry
+签名: FSignature
+管易销售订单号: FGYSALEORDERNO
+错误码: FReturnMsg
+付款交易时间: FFinishTime
+地区码: FDistrictCode
+银行状态描述: FBANKMSG
+付款回调时间: FResponseTme
+请求时间: FRequestTime
+收款人证件类型: FCertType
+收款人证件号码: FCertNum
+银企开票: FBankInvoice
+电票状态: FNoteStatus
+未核销金额: FNOTVERIFICATEAMOUNT
+预付采购订单号: FENTRYPREPAYORDERNO
+已电票开票: FIsInvoice
+行唯一标志: FUnique
+交易类型: FTransacType
+电文指示: FMessageInstruct
+服务级别: FServiceLevel
+付款方式: FPayMethod
+CNY付款方式: FCNYPayMethod
+兑换合约号: FExContractNo
+收款币别: FCollectionCurr
+收款金额: FCollectionAmount
+收款银行BIC: FReceiveBankBIC
+收款银行代码: FReceiveBankCode
+收款支行代码: FReceiveBranchCode
+手续费承担方: FServiceChargeBear
+手续费账号: FServiceChargeNo
+手续费账号银行: FServiceChargeBank
+手续费币别: FServiceChargeCurr
+CNAPSNum: FCNAPSNum
+人民币交易种类: FCNYTransactType
+人民币付款方式: FRMBPayMethod
+通过代理行完成: FByAgentBank
+代理行账号: FAgentBankAcnt
+代理行名称: FAgentBankName
+代理行国家\地区: FAgentBankArea
+SWIFT Code(代理行): FAgentSWIFTCode
+代理行地址: FAgentBankAddress
+收款银行本地清算码: FReceiveBankClear
+收款人本地清算分行代码: FReceiveBranchClear
+清算要求参数: FClearParameter
+对方地址: FOtherPartyAdress
+对方邮箱: FOtherPartyEmail
+境外支付: FOverseaPay
+关联行ID: FLinkRowId
+系统支付用途: FUse
+协定汇率: FXDexchangeRate
+已退款金额: FRELATEREFUNDAMOUNT
+加急标志: FUrgentSign
+付款通知邮箱: FPayerEmail
+申请人姓名: FPayApplyName
+申请人联系电话: FPayApplyPhone
+申请交易附言: FApplyPayDesc
+申报标识: FApplyDecType
+项目: F_TJKT_Base_apv_SRC_E
+项目: F_TJKT_Base_apv
+付款单源单明细: FPAYBILLSRCENTRY
+应付金额: FAFTTAXTOTALAMOUNT
+立账日期: FOPENACCOUNTDATE
+本次付款金额: FREALPAYAMOUNT_S
+结算方式: FSRCSETTLETYPEID
+源单内码: FSRCBILLID
+源单行内码: FSRCROWID
+源单行号: FSRCSEQ
+到期日: FEXPIRY
+计划付款金额: FPLANPAYAMOUNT
+源单币别: FSRCCURRENCYID
+源单类型: FSOURCETYPE
+源单编号: FSRCBILLNO
+付款用途: FPAYPURPOSEID
+计划付利息金额: FPlanInstAmount
+本次还本金额: FRealPclAmount
+本次付利息金额: FRealInstAmount
+费用项目: FSRCCOSTID
+采购订单编号: FPURORDERNO
+物料编码: FSRCMATERIALID
+物料名称: FSRCMATERIALNAME
+采购订单行号: FSRCMATERIALSEQ
+采购订单明细内码: FSRCORDERENTRYID
+税额: FTAXAMOUNT
+税额本位币: FTAXAMOUNTLOC
+费用承担部门: FEXPENSEDEPTID
+应付款金额本位币: FPLANPAYAMOUNTLOC
+本次付款金额本位币: FREALPAYAMOUNTLOC
+预付采购订单号: FPREPAYORDERNO
+备注: FSRCREMARK
+计价单位: FSRCPRICEUNITID
+含税单价: FSRCPRICE
+数量: FSRCQTY
+结算金额: FSETTLEAMOUNT
+关联行ID: FSrcLinkRowId
+项目: F_TJKT_Base_apv_SRC
+个人社保: F_TJKT_Amount_ca9
+个人公积金: F_TJKT_Amount_uky
+个人所得税: F_TJKT_Amount_dvn
+税前工资: F_TJKT_Amount_w5c
+企业部分: F_TJKT_Amount_zc5
+个人部分: F_TJKT_Amount_imu
+合计金额: F_TJKT_Amount_1xj
+关联采购订单: FASSPURCHASEORDER
+实体主键: FDetailID
+关联单据ID: FASSBILLID
+关联单据编号: FASSBILLNO
+关联金额: FASSAMOUNTFOR
+预付预收已核销金额: FPREMATCHAMOUNTFOR
+关联单据编号（按订单）: FASSPURORDERNO
+关联物料: FASSMATERIALID
+关联订单明细内码: FASSORDERENTRYID
+应付票据明细: FBILLPAYABLEENTRY
+票据流水号: FBILLID
+票据类型: FKDBPBILLTYPE
+到期日: FKDBPDUEDATE
+结算状态: FKDBPSETTLESTATUS
+未占用票面金额: FPARLEFTAMOUNTFOR
+当前占用金额: FUSEDAMOUNTFOR
+内部账户: FINNERACCOUNTID_B
+票据组织(临时用的): FTempOrgId
+票据（包）号: FKDBPBILLNO
+票面金额: FKDBPPARAMOUNT
+票面金额本位币: FBPPARAMOUNT
+未占用票面金额本位币: FPARLEFTAMOUNT
+当前占用金额本位币: FUSEDAMOUNT
+电票状态: FPNoteStatus
+票据号码: FFRCBILLNUMBERPT
+应收票据背书: FBILLRECEIVABLEENTRY
+内部账户: FInnerActId
+票据流水号: FReceivebleBillId
+付款用途: FPayPurse
+背书金额: FReturnAmount
+票据类型: FKDBPARBILLTYPE
+客户: FKDBPCUSTOMER
+票面金额: FParAmount
+往来单位类型: FBCONTACTUNITTYPE
+往来单位: FBCONTACTUNIT
+票面金额本位币: FPARAMOUNTSTD
+背书金额本位币: FReturnAmountStd
+票据（包）号: FKDBPARBILLNO
+已电票背书: FIsEndorse
+银企背书: FBankEndorse
+银行处理状态: FRBankStatus
+电票状态: FRNoteStatus
+被背书人账号: FEndorseeNo
+被背书人开户行行名: FOppBankName
+被背书人开户行行号: FEndorseeCnapsCode
+票据（包）号: FTICKETNO
+等分化票据: FEquidiffBill
+子票包开始序号: FSTARTNO
+子票据终止序号: FENDNO
+新电票状态: FNEWNOTESTATUS
+票据流通状态: FCIRSTATUS
+票据来源: FTICKETFROM
+票据号码: FFRCBILLNUMBERPRT
+自动拆分: FISAUTOSPLIT
+多收款人: FPAYBILLMORERECENTRY
+结算方式: FSETTLETYPEID_M
+应付金额: FPAYAMOUNTFOR_M
+我方银行账号: FACCOUNTID_M
+我方账户名称: FPAYACCOUNTNAME_M
+我方开户行: FPAYBANKID_M
+银行网点: FBANKDETAIL_M
+国别: FCOUNTRY_M
+省: FNPROVINCE_M
+城市: FNCITY_M
+地区: FNDISTRICT_M
+对方开户行: FOPPOSITEBANKNAME_M
+开户行地址: FOPENADDRESSREC_M
+联行号: FCNAPS_M
+对方银行账号: FOPPOSITEBANKACCOUNT_M
+对方账户名称: FOPPOSITECCOUNTNAME_M
+备注: FCOMMENT_M
+SwiftCode: FSWIFTCODE_M
+收款方类型: FRECTYPE_M
+入账类型: FRUZHANGTYPE_M
+支付类型: FPAYTYPE_M
+加急(作废): FURGENT_M
+提交银行状态: FSUBMITSTATUS_M
+银行处理状态: FBANKSTATUS_M
+提交/撤销银行人: FSUBMITUSER_M
+提交/撤销银行时间: FSUBMITBANKTIME_M
+银行状态码: FBANKCODE_M
+银企处理详细信息: FEBMSG_M
+银行状态描述: FBANKMSG_M
+流水号/对账码: FCHECKCODE_M
+签名: FSIGNATURE_M
+付款金额: FPayAmount_M
+错误码: FRETURNMSG_M
+付款交易时间: FFinishTime_M
+请求时间: FREQUESTTIME_M
+付款回调时间: FRESPONSETME_M
+地区码: FDistrictCode_M
+收款人证件类型: FCertType_M
+收款人证件号码: FCERTNUM_M
+s-HR发放单明细唯一标识: FSHRENTRYID
+已退回s-HR: FRETURNSHR
+收款单位: FRECTUNIT_M
+加急标志: FUrgentSign_M
+关联关系表: FPAYBILLSRCENTRY_Link
+实体主键: FLinkId
+业务流程图: FPAYBILLSRCENTRY_Link_FFlowId
+推进路线: FPAYBILLSRCENTRY_Link_FFlowLineId
+转换规则: FPAYBILLSRCENTRY_Link_FRuleId
+源单表内码: FPAYBILLSRCENTRY_Link_FSTableId
+源单表: FPAYBILLSRCENTRY_Link_FSTableName
+源单内码: FPAYBILLSRCENTRY_Link_FSBillId
+源单分录内码: FPAYBILLSRCENTRY_Link_FSId
+原始携带量: FPAYBILLSRCENTRY_Link_FREALPAYAMOUNT_SOld
+修改携带量: FPAYBILLSRCENTRY_Link_FREALPAYAMOUNT_S
+迁移图: FPAYBILLSRCENTRY_Link_FLnkTrackerId
+上游状态: FPAYBILLSRCENTRY_Link_FLnkSState
+数量FLnk: FPAYBILLSRCENTRY_Link_FLnkAmount

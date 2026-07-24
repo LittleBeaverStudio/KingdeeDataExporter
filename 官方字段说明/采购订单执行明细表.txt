@@ -1,196 +1,118 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.FieldKeys：需查询的字段key集合，字符串类型，格式："key1,key2,..."（必录）注（简单账表可能存在动态字段，指定待查字段时，须确保当前查询条件的结果集中包含待查字段）
-     2.2.SchemeId：过滤方案内码，字符串类型
-     2.3.StartRow：开始行索引，整型（非必录）
-     2.4.Limit：最大行数，整型，不能超过10000（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认true（非必录）
-     2.6.FilterString：过滤条件，数组类型，如：[{"Left":"(","FieldName":"Field1","Compare":"67","Value":"111","Right":")","Logic":"0"},{"Left":"(","FieldName":"Field2","Compare":"67","Value":"222","Right":")","Logic":"0"}]
-     2.7.Model：表单数据包，JSON类型（必录）
-
-二、返回结果：
-{"Result": {"IsSuccess": true,"RowCount": 0,"Rows": [ ] }}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/k3cloud/");
-client.GetSysReportData("PUR_PurchaseOrderDetailRpt","{"FieldKeys":"","SchemeId":"","StartRow":0,"Limit":2000,"IsVerifyBaseDataField":"true","FilterString":[],"Model":{"FPurchaseOrgIdList":"","FOrderStartDate":"1900-01-01","FOrderEndDate":"1900-01-01","FBeginSupplierId":{"FNumber":""},"FEndSupplierId":{"FNumber":""},"FBeginBillNumber":"","FEndBillNumber":"","FBeginMaterialId":{"FNumber":""},"FEndMaterialId":{"FNumber":""},"FBeginPurchaser":{"FNumber":""},"FEndFPurchaser":{"FNumber":""},"FBusinessType":"","FDocumentStatus":"","FLineStatus":""}}");
-
-四、JSON格式数据：
-{
-    "FieldKeys": "",
-    "SchemeId": "",
-    "StartRow": 0,
-    "Limit": 2000,
-    "IsVerifyBaseDataField": "true",
-    "FilterString": [],
-    "Model": {
-        "FPurchaseOrgIdList": "",
-        "FOrderStartDate": "1900-01-01",
-        "FOrderEndDate": "1900-01-01",
-        "FBeginSupplierId": {
-            "FNumber": ""
-        },
-        "FEndSupplierId": {
-            "FNumber": ""
-        },
-        "FBeginBillNumber": "",
-        "FEndBillNumber": "",
-        "FBeginMaterialId": {
-            "FNumber": ""
-        },
-        "FEndMaterialId": {
-            "FNumber": ""
-        },
-        "FBeginPurchaser": {
-            "FNumber": ""
-        },
-        "FEndFPurchaser": {
-            "FNumber": ""
-        },
-        "FBusinessType": "",
-        "FDocumentStatus": "",
-        "FLineStatus": ""
-    }
-}
-
-五、字段说明：
-	 订单日期：FOrderStartDate  (必填项)
-	 至：FOrderEndDate  (必填项)
-	 业务类型：FBusinessType  (必填项)
-	 单据状态：FDocumentStatus  (必填项)
-	 采购组织：FPurchaseOrgIdList  (必填项)
-	 至：FEndFPurchaser 
-	 至：FEndBillNumber 
-	 至：FEndSupplierId 
-	 供应商编码：FBeginSupplierId 
-	 至：FEndMaterialId 
-	 采购员编码：FBeginPurchaser 
-	 订单编号：FBeginBillNumber 
-	 物料编码：FBeginMaterialId 
-	 行状态：FLineStatus  (必填项)
-
-参数FieldKeys显示列：
-	 采购组织：FPurchaseOrgId 
-	 采购组：FPURCHASERGROUPID 
-	 采购部门：FPURCHASEDEPTID 
-	 采购员：FPURCHASERID 
-	 订单编号：FBillNo 
-	 日期：FDate 
-	 供应商编码：FSUPPLIERID 
-	 供应商名称：FSUPPLIERNAME 
-	 供应商分组：FSupplierGroup 
-	 订单行号：FBillSeqId 
-	 物料编码：FMATERIALID 
-	 物料名称：FMATERIALNAME 
-	 计划跟踪号：FMTONO 
-	 规格型号：FMaterialModel 
-	 存货类别：FCategoryID 
-	 物料属性：FErpClsID 
-	 物料分组：FMaterialGroup 
-	 辅助属性：FFLEX 
-	 源单编号：FSrcBillNo 
-	 源单类型：FSRCBILLTYPENAME 
-	 交货日期：FDELIVERYDATE 
-	 需求组织：FREQUIREORGID 
-	 需求部门：FREQUIREDEPTID 
-	 采购单位：FUnitId 
-	 结算币别：FCurrencyId 
-	 本位币：FCURRENCYID_LC 
-	 计价单位：FPRICEUNITID 
-	 订货数量：FOrderQty 
-	 订货数量(计价单位)：FORDERPRICEQTY 
-	 含税单价：FTAXPRICE 
-	 含税单价(本位币)：FTAXPRICE_LC 
-	 价税合计：FOrderAmount 
-	 价税合计(本位币)：FORDERAMOUNT_LC 
-	 收料单号：FReceiveNumber 
-	 收料日期：FReceiveDate 
-	 收料单行号：FRECEIVESEQID 
-	 收料数量：FReceiveQty 
-	 收料数量(计价单位)：FRECEIVEPRICEQTY 
-	 收料金额：FReceiveAmount 
-	 收料金额(本位币)：FRECEIVEAMOUNT_LC 
-	 入库单号：FEnterNumber 
-	 入库日期：FEnterDate 
-	 入库单行号：FINSTOCKSEQID 
-	 入库数量：FImportQty 
-	 入库数量(计价单位)：FIMPORTPRICEQTY 
-	 入库金额：FImportAmount 
-	 入库金额(本位币)：FIMPORTAMOUNT_LC 
-	 入库不含税金额：FIMPORTNOTAXAMOUNT 
-	 入库不含税金额(本位币)：FIMPORTNOTAXAMOUNT_LC 
-	 退料单号：FReturnNumber 
-	 退料日期：FReturnDate 
-	 退料单行号：FRETURNSEQID 
-	 退料数量：FReturnQty 
-	 退料数量(计价单位)：FRETURNPRICEQTY 
-	 退料金额：FReturnAmount 
-	 退料金额(本位币)：FRETURNAMOUNT_LC 
-	 应付单号：FPAYNUMBER 
-	 应付日期：FPAYDATE 
-	 应付单行号：FPAYSEQID 
-	 立账类型：FSETACCOUNTTYPE 
-	 应付数量：FPAYQTY 
-	 应付数量(计价单位)：FPAYPRICEQTY 
-	 应付金额：FPAYAMOUNT 
-	 应付不含税金额：FPAYEXTAXAMOUNT 
-	 应付金额(本位币)：FPAYAMOUNT_LC 
-	 调整金额：FPAYWOFFAMOUNT 
-	 应付调整金额(本位币)：FPAYWOFFAMOUNT_LC 
-	 开票单号：FINVOICENUMBER 
-	 开票数量：FINVOICEQTY 
-	 开票金额：FINVOICEAMOUNT 
-	 开票金额(本位币)：FINVOICEAMOUNT_LC 
-	 预付单号：FRECPAYBILLNUMBER 
-	 预付金额：FRECPAYBILLAMOUNT 
-	 预付金额(本位币)：FRECPAYBILLAMOUNT_LC 
-	 行业务终止：FMRPTERMINATESTATUS 
-	 付款单号：FPAYBILLNUMBER 
-	 付款日期：FPAYBILLDATE 
-	 已结算金额：FPAYBILLAMOUNT 
-	 已结算金额(本位币)：FPAYBILLAMOUNT_LC 
-	 关联保证金：FRELATEDEPOSIT 
-	 行业务关闭：FMRPCLOSESTATUS 
-	 关联申请保证金：FAPPLYRELATEDEPOSIT 
-	 关联退款保证金：FRELATEREFUNDDEPOSIT 
-	 整单关闭：FCLOSESTATUS 
-	 行业务冻结：FMRPFREEZESTATUS 
-	 发票号：FINVOICENO 
-	 发票日期：FINVOICEDATE 
-	 结算调整金额：FSETADJAMOUNT 
-	 付款核销金额：FPAYWRITOFFAMOUNT 
-	 特殊冲销金额：FSPEWOFFAMOUNT 
-	 已付款金额(接口)：FINTEPAYAMOUNT 
-	 结算调整金(本位币)：FSETADJAMOUNT_LC 
-	 付款核销金额(本位币)：FPAYWRITOFFAMOUNT_LC 
-	 特殊冲销金额(本位币)：FSPEWOFFAMOUNT_LC 
-	 已付款金额(接口)(本位币)：FINTEPAYAMOUNT_LC 
-	 先开票单号：FPREINVOCEBILLNO 
-	 先开票发票日期：FPREINVOICEDATE 
-	 先开票数量：FPREINVOICEQTY 
-	 先开票金额：FPREINVOICEAMOUNT 
-	 先开票发票号：FPREINVOICENO 
-	 先开票金额(本位币)：FPREINVOICEAMOUNT_LC 
-	 物料说明：FMATERIALDESC 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+订单日期: FOrderStartDate
+至: FOrderEndDate
+业务类型: FBusinessType
+单据状态: FDocumentStatus
+采购组织: FPurchaseOrgIdList
+至: FEndFPurchaser
+至: FEndBillNumber
+至: FEndSupplierId
+供应商编码: FBeginSupplierId
+至: FEndMaterialId
+采购员编码: FBeginPurchaser
+订单编号: FBeginBillNumber
+物料编码: FBeginMaterialId
+行状态: FLineStatus
+采购组织: FPurchaseOrgId
+采购组: FPURCHASERGROUPID
+采购部门: FPURCHASEDEPTID
+采购员: FPURCHASERID
+订单编号: FBillNo
+日期: FDate
+供应商编码: FSUPPLIERID
+供应商名称: FSUPPLIERNAME
+供应商分组: FSupplierGroup
+订单行号: FBillSeqId
+物料编码: FMATERIALID
+物料名称: FMATERIALNAME
+计划跟踪号: FMTONO
+规格型号: FMaterialModel
+存货类别: FCategoryID
+物料属性: FErpClsID
+物料分组: FMaterialGroup
+辅助属性: FFLEX
+源单编号: FSrcBillNo
+源单类型: FSRCBILLTYPENAME
+交货日期: FDELIVERYDATE
+需求组织: FREQUIREORGID
+需求部门: FREQUIREDEPTID
+采购单位: FUnitId
+结算币别: FCurrencyId
+本位币: FCURRENCYID_LC
+计价单位: FPRICEUNITID
+订货数量: FOrderQty
+订货数量(计价单位): FORDERPRICEQTY
+含税单价: FTAXPRICE
+含税单价(本位币): FTAXPRICE_LC
+价税合计: FOrderAmount
+价税合计(本位币): FORDERAMOUNT_LC
+收料单号: FReceiveNumber
+收料日期: FReceiveDate
+收料单行号: FRECEIVESEQID
+收料数量: FReceiveQty
+收料数量(计价单位): FRECEIVEPRICEQTY
+收料金额: FReceiveAmount
+收料金额(本位币): FRECEIVEAMOUNT_LC
+入库单号: FEnterNumber
+入库日期: FEnterDate
+入库单行号: FINSTOCKSEQID
+入库数量: FImportQty
+入库数量(计价单位): FIMPORTPRICEQTY
+入库金额: FImportAmount
+入库金额(本位币): FIMPORTAMOUNT_LC
+入库不含税金额: FIMPORTNOTAXAMOUNT
+入库不含税金额(本位币): FIMPORTNOTAXAMOUNT_LC
+退料单号: FReturnNumber
+退料日期: FReturnDate
+退料单行号: FRETURNSEQID
+退料数量: FReturnQty
+退料数量(计价单位): FRETURNPRICEQTY
+退料金额: FReturnAmount
+退料金额(本位币): FRETURNAMOUNT_LC
+应付单号: FPAYNUMBER
+应付日期: FPAYDATE
+应付单行号: FPAYSEQID
+立账类型: FSETACCOUNTTYPE
+应付数量: FPAYQTY
+应付数量(计价单位): FPAYPRICEQTY
+应付金额: FPAYAMOUNT
+应付不含税金额: FPAYEXTAXAMOUNT
+应付金额(本位币): FPAYAMOUNT_LC
+调整金额: FPAYWOFFAMOUNT
+应付调整金额(本位币): FPAYWOFFAMOUNT_LC
+开票单号: FINVOICENUMBER
+开票数量: FINVOICEQTY
+开票金额: FINVOICEAMOUNT
+开票金额(本位币): FINVOICEAMOUNT_LC
+预付单号: FRECPAYBILLNUMBER
+预付金额: FRECPAYBILLAMOUNT
+预付金额(本位币): FRECPAYBILLAMOUNT_LC
+行业务终止: FMRPTERMINATESTATUS
+付款单号: FPAYBILLNUMBER
+付款日期: FPAYBILLDATE
+已结算金额: FPAYBILLAMOUNT
+已结算金额(本位币): FPAYBILLAMOUNT_LC
+关联保证金: FRELATEDEPOSIT
+行业务关闭: FMRPCLOSESTATUS
+关联申请保证金: FAPPLYRELATEDEPOSIT
+关联退款保证金: FRELATEREFUNDDEPOSIT
+整单关闭: FCLOSESTATUS
+行业务冻结: FMRPFREEZESTATUS
+发票号: FINVOICENO
+发票日期: FINVOICEDATE
+结算调整金额: FSETADJAMOUNT
+付款核销金额: FPAYWRITOFFAMOUNT
+特殊冲销金额: FSPEWOFFAMOUNT
+已付款金额(接口): FINTEPAYAMOUNT
+结算调整金(本位币): FSETADJAMOUNT_LC
+付款核销金额(本位币): FPAYWRITOFFAMOUNT_LC
+特殊冲销金额(本位币): FSPEWOFFAMOUNT_LC
+已付款金额(接口)(本位币): FINTEPAYAMOUNT_LC
+先开票单号: FPREINVOCEBILLNO
+先开票发票日期: FPREINVOICEDATE
+先开票数量: FPREINVOICEQTY
+先开票金额: FPREINVOICEAMOUNT
+先开票发票号: FPREINVOICENO
+先开票金额(本位币): FPREINVOICEAMOUNT_LC
+物料说明: FMATERIALDESC
