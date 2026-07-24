@@ -1,635 +1,287 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.NeedUpDateFields：需要更新的字段，数组类型，格式：[key1,key2,...] （非必录）注（更新字段时Model数据包中必须设置内码，若更新单据体字段还需设置分录内码）
-     2.2.NeedReturnFields：需返回结果的字段集合，数组类型，格式：[key,entitykey.key,...]（非必录） 注（返回单据体字段格式：entitykey.key）
-     2.3.IsDeleteEntry：是否删除已存在的分录，布尔类型，默认true（非必录）
-     2.4.SubSystemId：表单所在的子系统内码，字符串类型（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认false（非必录）
-     2.6.IsEntryBatchFill：是否批量填充分录，默认true（非必录）
-     2.7.ValidateFlag：是否验证数据合法性标志，布尔类型，默认true（非必录）注（设为false时不对数据合法性进行校验）
-     2.8.NumberSearch：是否用编码搜索基础资料，布尔类型，默认true（非必录）
-     2.9.IsAutoAdjustField：是否自动调整JSON字段顺序，布尔类型，默认false（非必录）
-     2.10.InterationFlags：交互标志集合，字符串类型，分号分隔，格式："flag1;flag2;..."（非必录） 例如（允许负库存标识：STK_InvCheckResult）
-     2.11.IgnoreInterationFlag：是否允许忽略交互，布尔类型，默认true（非必录）
-     2.12.IsControlPrecision：是否控制精度，为true时对金额、单价和数量字段进行精度验证，默认false（非必录）
-     2.13.ValidateRepeatJson：校验Json数据包是否重复传入，一旦重复传入，接口调用失败，传true则启用校验，传false则不校验（非必录）
-     2.14.Model：表单数据包，JSON类型（必录）
-备注:
-1.示例Model数据包中字段顺序不建议改变，否则可能会有相互影响，如果出现字段值被覆盖或丢失，则可以尝试把字段顺序向后调整一下。
-2.示例Model数据包默认包含允许引入的字段，实际按需构建既可。
-3.如需创建关联关系，可参考https://club.kingdee.com/forum.php?mod=viewthread&tid=1394265 。
-4.对于重要API接口，应设置幂等性校验、设置对应候选键（唯一性字段）的唯一索引等防重调用机制，以防并发导致数据重复。
-
-二、返回结果：
-{"Result":{"ResponseStatus":{"ErrorCode":"","IsSuccess":"false","Errors":[{"FieldName":"","Message":"","DIndex":0}],"SuccessEntitys":[{"Id":"","Number":"","DIndex":0}],"SuccessMessages":[{"FieldName":"","Message":"","DIndex":0}],"MsgCode":""},"Id":"","Number":"","NeedReturnData":[{}]}}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/k3cloud/");
-client.Save("SAL_RETURNSTOCK","{"NeedUpDateFields":[],"NeedReturnFields":[],"IsDeleteEntry":"true","SubSystemId":"","IsVerifyBaseDataField":"false","IsEntryBatchFill":"true","ValidateFlag":"true","NumberSearch":"true","IsAutoAdjustField":"true","InterationFlags":"","IgnoreInterationFlag":"","IsControlPrecision":"false","ValidateRepeatJson":"true","Model":{"FID":0,"FBillTypeID":{"FNUMBER":""},"FBillNo":"","FDate":"1900-01-01","FSaleOrgId":{"FNumber":""},"FRetcustId":{"FNumber":""},"FSaledeptid":{"FNumber":""},"FReturnReason":{"FNumber":""},"FHeadLocId":{"FNumber":""},"FTransferBizType":{"FNumber":""},"FCorrespondOrgId":{"FNumber":""},"FSaleGroupId":{"FNumber":""},"FSalesManId":{"FNumber":""},"FStockOrgId":{"FNumber":""},"FStockDeptId":{"FNumber":""},"FStockerGroupId":{"FNumber":""},"FStockerId":{"FNumber":""},"FHeadNote":"","FReceiveCustId":{"FNumber":""},"FReceiveAddress":"","FSettleCustId":{"FNumber":""},"FReceiveCusContact":{"FNAME":""},"FPayCustId":{"FNumber":""},"FOwnerTypeIdHead":"","FOwnerIdHead":{"FNumber":""},"FScanBox":"","FCDateOffsetUnit":"","FCDateOffsetValue":0,"FIsTotalServiceOrCost":"false","FSHOPNUMBER":"","FGYDATE":"1900-01-01","FSALECHANNEL":"","FGYExpressNo":"","FLinkMan":"","FLinkPhone":"","FPRESETBASE1":{"FNUMBER":""},"FPRESETBASE2":{"FNUMBER":""},"FPRESETASSISTANT1":{"FNumber":""},"FPRESETASSISTANT2":{"FNumber":""},"FAllRefundNoGoods":"false","FGYRefundType":"","FARStatus":"","F_TJKT_Base_83g_re5_43c":{"FNUMBER":""},"F_TJKT_Combo_83g":"","SubHeadEntity":{"FEntryId":0,"FSettleCurrId":{"FNumber":""},"FThirdBillNo":"","FThirdBillId":"","FThirdSrcType":"","FSettleOrgId":{"FNumber":""},"FSettleTypeId":{"FNumber":""},"FChageCondition":{"FNumber":""},"FPriceListId":{"FNumber":""},"FDiscountListId":{"FNumber":""},"FLocalCurrId":{"FNumber":""},"FExchangeTypeId":{"FNumber":""},"FExchangeRate":0,"FBuyerNick":"","FReceiverAddress":"","FReceiverName":"","FReceiverMobile":"","FReceiverCountry":"","FReceiverState":"","FReceiverCity":"","FReceiverDistrict":"","FReceiverPhone":"","FVIPCODE":"","FGYTAGCODE":"","FGYTAGNAME":""},"FEntity":[{"FENTRYID":0,"FRowType":"","FMapId":{"FNumber":""},"FMaterialId":{"FNumber":""},"FAuxpropId":{},"FUnitID":{"FNumber":""},"FInventoryQty":0,"FRealQty":0,"FParentMatId":{"FNUMBER":""},"FPrice":0,"FTaxPrice":0,"FIsFree":"false","FTaxCombination":{"FNumber":""},"FEntryTaxRate":0,"FBOMId":{"FNumber":""},"FReturnType":{"FNumber":""},"FOwnerTypeId":"","FOwnerId":{"FNumber":""},"FStockId":{"FNumber":""},"FStocklocId":{"FSTOCKLOCID__FF100001":{"FNumber":""}},"FStockstatusId":{"FNumber":""},"FLot":{"FNumber":""},"FDeliveryDate":"1900-01-01","FMtoNo":"","FProduceDate":"1900-01-01","FExpiryDate":"1900-01-01","FNote":"","FDiscountRate":0,"FPriceDiscount":0,"FAuxUnitQty":0,"FExtAuxUnitId":{"FNumber":""},"FExtAuxUnitQty":0,"FSrcBillTypeID":"","FSrcBillNo":"","FISCONSUMESUM":"","FSalUnitID":{"FNumber":""},"FSalUnitQty":0,"FSalBaseQty":0,"FPriceBaseQty":0,"FProjectNo":"","FQualifyType":"","FEOwnerSupplierId":{"FNUMBER":""},"FIsOverLegalOrg":"false","FESettleCustomerId":{"FNUMBER":""},"FSOEntryId":0,"FThirdEntryId":"","FPriceListEntry":{"FNUMBER":""},"FARNOTJOINQTY":0,"FIsReturnCheck":"false","FETHIRDBILLID":"","FETHIRDBILLNO":"","FSettleBySon":"false","FBOMEntryId":0,"FMaterialID_Sal":{"FNUMBER":""},"FMrbBillNo":"","FMrbEntryId":0,"FINSTOCKDATE":"1900-01-01","FRowARStatus":"","FApAmount":0,"FApAmountLC":0,"FVmiBusinessStatus":"false","FTaxDetailSubEntity":[{"FDetailID":0,"FTaxRate":0}],"FSerialSubEntity":[{"FDetailID":0,"FSerialNo":"","FSerialNote":""}]}],"FRetStockTrace":[{"FEntryID":0,"FLogComId":{"FCODE":""},"FCarryBillNo":"","FPhoneNumber":"","FFrom":"","FTo":"","FDelTime":"1900-01-01","FTraceStatus":"","FReceiptTime":"1900-01-01","FCarryBillNoType":"","FReturnStockTraceDetail":[{"FDetailID":0,"FTraceTime":"","FTraceDetail":""}]}]}}");
-
-四、JSON格式数据：
-{
-    "NeedUpDateFields": [],
-    "NeedReturnFields": [],
-    "IsDeleteEntry": "true",
-    "SubSystemId": "",
-    "IsVerifyBaseDataField": "false",
-    "IsEntryBatchFill": "true",
-    "ValidateFlag": "true",
-    "NumberSearch": "true",
-    "IsAutoAdjustField": "true",
-    "InterationFlags": "",
-    "IgnoreInterationFlag": "",
-    "IsControlPrecision": "false",
-    "ValidateRepeatJson": "true",
-    "Model": {
-        "FID": 0,
-        "FBillTypeID": {
-            "FNUMBER": ""
-        },
-        "FBillNo": "",
-        "FDate": "1900-01-01",
-        "FSaleOrgId": {
-            "FNumber": ""
-        },
-        "FRetcustId": {
-            "FNumber": ""
-        },
-        "FSaledeptid": {
-            "FNumber": ""
-        },
-        "FReturnReason": {
-            "FNumber": ""
-        },
-        "FHeadLocId": {
-            "FNumber": ""
-        },
-        "FTransferBizType": {
-            "FNumber": ""
-        },
-        "FCorrespondOrgId": {
-            "FNumber": ""
-        },
-        "FSaleGroupId": {
-            "FNumber": ""
-        },
-        "FSalesManId": {
-            "FNumber": ""
-        },
-        "FStockOrgId": {
-            "FNumber": ""
-        },
-        "FStockDeptId": {
-            "FNumber": ""
-        },
-        "FStockerGroupId": {
-            "FNumber": ""
-        },
-        "FStockerId": {
-            "FNumber": ""
-        },
-        "FHeadNote": "",
-        "FReceiveCustId": {
-            "FNumber": ""
-        },
-        "FReceiveAddress": "",
-        "FSettleCustId": {
-            "FNumber": ""
-        },
-        "FReceiveCusContact": {
-            "FNAME": ""
-        },
-        "FPayCustId": {
-            "FNumber": ""
-        },
-        "FOwnerTypeIdHead": "",
-        "FOwnerIdHead": {
-            "FNumber": ""
-        },
-        "FScanBox": "",
-        "FCDateOffsetUnit": "",
-        "FCDateOffsetValue": 0,
-        "FIsTotalServiceOrCost": "false",
-        "FSHOPNUMBER": "",
-        "FGYDATE": "1900-01-01",
-        "FSALECHANNEL": "",
-        "FGYExpressNo": "",
-        "FLinkMan": "",
-        "FLinkPhone": "",
-        "FPRESETBASE1": {
-            "FNUMBER": ""
-        },
-        "FPRESETBASE2": {
-            "FNUMBER": ""
-        },
-        "FPRESETASSISTANT1": {
-            "FNumber": ""
-        },
-        "FPRESETASSISTANT2": {
-            "FNumber": ""
-        },
-        "FAllRefundNoGoods": "false",
-        "FGYRefundType": "",
-        "FARStatus": "",
-        "F_TJKT_Base_83g_re5_43c": {
-            "FNUMBER": ""
-        },
-        "F_TJKT_Combo_83g": "",
-        "SubHeadEntity": {
-            "FEntryId": 0,
-            "FSettleCurrId": {
-                "FNumber": ""
-            },
-            "FThirdBillNo": "",
-            "FThirdBillId": "",
-            "FThirdSrcType": "",
-            "FSettleOrgId": {
-                "FNumber": ""
-            },
-            "FSettleTypeId": {
-                "FNumber": ""
-            },
-            "FChageCondition": {
-                "FNumber": ""
-            },
-            "FPriceListId": {
-                "FNumber": ""
-            },
-            "FDiscountListId": {
-                "FNumber": ""
-            },
-            "FLocalCurrId": {
-                "FNumber": ""
-            },
-            "FExchangeTypeId": {
-                "FNumber": ""
-            },
-            "FExchangeRate": 0,
-            "FBuyerNick": "",
-            "FReceiverAddress": "",
-            "FReceiverName": "",
-            "FReceiverMobile": "",
-            "FReceiverCountry": "",
-            "FReceiverState": "",
-            "FReceiverCity": "",
-            "FReceiverDistrict": "",
-            "FReceiverPhone": "",
-            "FVIPCODE": "",
-            "FGYTAGCODE": "",
-            "FGYTAGNAME": ""
-        },
-        "FEntity": [
-            {
-                "FENTRYID": 0,
-                "FRowType": "",
-                "FMapId": {
-                    "FNumber": ""
-                },
-                "FMaterialId": {
-                    "FNumber": ""
-                },
-                "FAuxpropId": {},
-                "FUnitID": {
-                    "FNumber": ""
-                },
-                "FInventoryQty": 0,
-                "FRealQty": 0,
-                "FParentMatId": {
-                    "FNUMBER": ""
-                },
-                "FPrice": 0,
-                "FTaxPrice": 0,
-                "FIsFree": "false",
-                "FTaxCombination": {
-                    "FNumber": ""
-                },
-                "FEntryTaxRate": 0,
-                "FBOMId": {
-                    "FNumber": ""
-                },
-                "FReturnType": {
-                    "FNumber": ""
-                },
-                "FOwnerTypeId": "",
-                "FOwnerId": {
-                    "FNumber": ""
-                },
-                "FStockId": {
-                    "FNumber": ""
-                },
-                "FStocklocId": {
-                    "FSTOCKLOCID__FF100001": {
-                        "FNumber": ""
-                    }
-                },
-                "FStockstatusId": {
-                    "FNumber": ""
-                },
-                "FLot": {
-                    "FNumber": ""
-                },
-                "FDeliveryDate": "1900-01-01",
-                "FMtoNo": "",
-                "FProduceDate": "1900-01-01",
-                "FExpiryDate": "1900-01-01",
-                "FNote": "",
-                "FDiscountRate": 0,
-                "FPriceDiscount": 0,
-                "FAuxUnitQty": 0,
-                "FExtAuxUnitId": {
-                    "FNumber": ""
-                },
-                "FExtAuxUnitQty": 0,
-                "FSrcBillTypeID": "",
-                "FSrcBillNo": "",
-                "FISCONSUMESUM": "",
-                "FSalUnitID": {
-                    "FNumber": ""
-                },
-                "FSalUnitQty": 0,
-                "FSalBaseQty": 0,
-                "FPriceBaseQty": 0,
-                "FProjectNo": "",
-                "FQualifyType": "",
-                "FEOwnerSupplierId": {
-                    "FNUMBER": ""
-                },
-                "FIsOverLegalOrg": "false",
-                "FESettleCustomerId": {
-                    "FNUMBER": ""
-                },
-                "FSOEntryId": 0,
-                "FThirdEntryId": "",
-                "FPriceListEntry": {
-                    "FNUMBER": ""
-                },
-                "FARNOTJOINQTY": 0,
-                "FIsReturnCheck": "false",
-                "FETHIRDBILLID": "",
-                "FETHIRDBILLNO": "",
-                "FSettleBySon": "false",
-                "FBOMEntryId": 0,
-                "FMaterialID_Sal": {
-                    "FNUMBER": ""
-                },
-                "FMrbBillNo": "",
-                "FMrbEntryId": 0,
-                "FINSTOCKDATE": "1900-01-01",
-                "FRowARStatus": "",
-                "FApAmount": 0,
-                "FApAmountLC": 0,
-                "FVmiBusinessStatus": "false",
-                "FTaxDetailSubEntity": [
-                    {
-                        "FDetailID": 0,
-                        "FTaxRate": 0
-                    }
-                ],
-                "FSerialSubEntity": [
-                    {
-                        "FDetailID": 0,
-                        "FSerialNo": "",
-                        "FSerialNote": ""
-                    }
-                ]
-            }
-        ],
-        "FRetStockTrace": [
-            {
-                "FEntryID": 0,
-                "FLogComId": {
-                    "FCODE": ""
-                },
-                "FCarryBillNo": "",
-                "FPhoneNumber": "",
-                "FFrom": "",
-                "FTo": "",
-                "FDelTime": "1900-01-01",
-                "FTraceStatus": "",
-                "FReceiptTime": "1900-01-01",
-                "FCarryBillNoType": "",
-                "FReturnStockTraceDetail": [
-                    {
-                        "FDetailID": 0,
-                        "FTraceTime": "",
-                        "FTraceDetail": ""
-                    }
-                ]
-            }
-        ]
-    }
-}
-
-五、字段说明：
-基本信息：FBillHead 
-	 实体主键：FID 
-	 单据编号：FBillNo 
-	 单据状态：FDocumentStatus 
-	 销售组织：FSaleOrgId  (必填项)
-	 日期：FDate  (必填项)
-	 库存组织：FStockOrgId  (必填项)
-	 退货客户：FRetcustId  (必填项)
-	 库存组：FStockerGroupId 
-	 仓管员：FStockerId 
-	 库存部门：FStockDeptId 
-	 销售组：FSaleGroupId 
-	 销售部门：FSaledeptid 
-	 销售员：FSalesManId 
-	 结算方：FSettleCustId 
-	 付款方：FPayCustId 
-	 创建人：FCreatorId 
-	 创建日期：FCreateDate 
-	 最后修改人：FModifierId 
-	 最后修改日期：FModifyDate 
-	 审核人：FApproverId 
-	 审核日期：FApproveDate 
-	 作废人：FCancellerId 
-	 作废日期：FCancelDate 
-	 作废状态：FCancelStatus 
-	 单据类型：FBillTypeID  (必填项)
-	 收货方：FReceiveCustId 
-	 货主类型：FOwnerTypeIdHead 
-	 货主：FOwnerIdHead 
-	 业务类型：FBussinessType 
-	 退货原因：FReturnReason 
-	 收货方地址：FReceiveAddress 
-	 交货地点：FHeadLocId 
-	 信用检查结果：FCreditCheckResult 
-	 跨组织业务类型：FTransferBizType 
-	 对应组织：FCorrespondOrgId 
-	 收货方联系人：FReceiveCusContact 
-	 组织间结算跨法人标识：FIsInterLegalPerson 
-	 序列号上传：FScanBox 
-	 创建日期偏移单位：FCDateOffsetUnit 
-	 创建日期偏移量：FCDateOffsetValue 
-	 备注：FHeadNote 
-	 整单服务标识：FIsTotalServiceOrCost 
-	 零售单日结生成：FGenFromPOS_CMK 
-	 销售门店：FBranchId 
-	 网店编码：FSHOPNUMBER 
-	 管易退货日期：FGYDATE 
-	 销售渠道：FSALECHANNEL 
-	 管易物流单号：FGYExpressNo 
-	 收货人姓名：FLinkMan 
-	 联系电话：FLinkPhone 
-	 预设基础资料字段1：FPRESETBASE1 
-	 预设基础资料字段2：FPRESETBASE2 
-	 预设辅助资料字段1：FPRESETASSISTANT1 
-	 预设辅助资料字段2：FPRESETASSISTANT2 
-	 全部分录仅退款不退货：FAllRefundNoGoods 
-	 管易退货售后类型：FGYRefundType 
-	 关联应收状态：FARStatus 
-	 项目：F_TJKT_Base_83g_re5_43c 
-	 退货类型：F_TJKT_Combo_83g  (必填项)
-明细信息：FEntity 
-	 实体主键：FENTRYID 
-	 物料编码：FMaterialId  (必填项)
-	 物料名称：FMaterialName 
-	 规格型号：FMaterialModel 
-	 物料类别：FMaterialType 
-	 库存单位：FUnitID  (必填项)
-	 应退数量：FMustqty 
-	 实退数量：FRealQty 
-	 仓库：FStockId 
-	 库存状态：FStockstatusId 
-	 货主类型：FOwnerTypeId  (必填项)
-	 货主：FOwnerId  (必填项)
-	 保管者类型：FKeeperTypeId 
-	 保管者：FKeeperId 
-	 BOM版本：FBOMId 
-	 辅助属性：FAuxpropId 
-	 生产日期：FProduceDate 
-	 有效期至：FExpiryDate 
-	 基本单位：FBaseunitId 
-	 库存基本数量：FBaseunitQty 
-	 库存辅单位：FAuxUnitId 
-	 库存辅单位数量：FAuxUnitQty 
-	 成本价（本位币）：FCostPrice 
-	 总成本：FEntryCostAmount 
-	 订单单号：FOrderNo 
-	 备注：FNote 
-	 关联应收数量（计价）：FInvoicedQty 
-	 (作废)关联开票数量(基本单位)：FBaseInvoicedQty 
-	 累计应收数量（销售）：FSumInvoicedQty 
-	 (作废)累计开票金额：FSumInvoicedAmt 
-	 累计收款金额：FSumRecievedAmt 
-	 库存更新标示：FStockFlag 
-	 源单类型：FSrcBillTypeID 
-	 保质期单位：FExpUnit 
-	 保质期：FExpPeriod 
-	 仓位：FStocklocId 
-	 牙博士：FF100001
-	 客户物料编码：FMapId 
-	 客户物料名称：FMapName 
-	 批号：FLot 
-	 退货类型：FReturnType  (必填项)
-	 (作废)累计开票数量(基本单位)：FBaseSumInvoicedQty 
-	 总成本（本位币）：FCostAmount_LC 
-	 计价单位：FPriceUnitId 
-	 计价数量：FPriceUnitQty 
-	 单价：FPrice 
-	 含税单价：FTaxPrice 
-	 税组合：FTaxCombination 
-	 税率%：FEntryTaxRate 
-	 价格系数：FPriceCoefficient 
-	 系统定价：FSysPrice 
-	 最低限价：FLimitDownPrice 
-	 折前金额：FBefDisAmt 
-	 折前价税合计：FBefDisAllAmt 
-	 折扣率%：FDiscountRate 
-	 折扣额：FDiscount 
-	 金额：FAmount 
-	 金额（本位币）：FAmount_LC 
-	 税额：FEntryTaxAmount 
-	 税额（本位币）：FTaxAmount_LC 
-	 价税合计：FAllAmount 
-	 价税合计（本位币）：FAllAmount_LC 
-	 是否赠品：FIsFree 
-	 净价：FTaxNetPrice 
-	 退货日期：FDeliveryDate  (必填项)
-	 关联应收数量（计价基本）：FBaseARJoinQty 
-	 业务流程：FBFLowId 
-	 累计应收数量（销售基本）：FBASEARQTY 
-	 关联应收金额：FARJOINAMOUNT 
-	 累计应收金额：FARAMOUNT 
-	 销售成本价：FSalCostPrice 
-	 源单编号：FSrcBillNo 
-	 订单类型：FSOBILLTYPEID 
-	 序列号单位：FSNUnitID 
-	 序列号单位数量：FSNQty 
-	 计划跟踪号：FMtoNo 
-	 项目编号：FProjectNo 
-	 拒收标志：FRefuseFlag 
-	 消耗汇总：FISCONSUMESUM 
-	 辅单位：FExtAuxUnitId 
-	 实退数量（辅单位）：FExtAuxUnitQty 
-	 当前库存：FInventoryQty 
-	 计价基本数量：FPriceBaseQty 
-	 销售单位：FSalUnitID 
-	 销售数量：FSalUnitQty 
-	 销售基本数量：FSalBaseQty 
-	 质量类型：FQualifyType 
-	 销售基本分子：FSalBaseNum 
-	 库存基本分母：FStockBaseDen 
-	 关联应收数量（库存基本）：FStockBaseARJoinQty 
-	 携带的主业务单位：FSRCBIZUNITID 
-	 明细货主供应商：FEOwnerSupplierId 
-	 组织间结算跨法人标识：FIsOverLegalOrg 
-	 明细结算组织客户：FESettleCustomerId 
-	 关联应收数量（销售基本）：FSalBaseARJoinQty 
-	 行价目表：FPriceListEntry 
-	  未关联应收数量（计价单位）：FARNOTJOINQTY 
-	 销售订单EntryId：FSOEntryId 
-	 退货检验：FIsReturnCheck 
-	 产品类型：FRowType 
-	 父项产品：FParentMatId 
-	 行标识：FRowId 
-	 父行标识：FParentRowId 
-	 管易订单单号：FThirdEntryId 
-	 第三方单据ID：FETHIRDBILLID 
-	 第三方单据编号：FETHIRDBILLNO 
-	 服务上下文：FServiceContext 
-	 门店供货价：FProPrice 
-	 供货金额：FProAmount 
-	 零售条形码：FBarcode 
-	 管易是否到账：FGYFINSTATUS 
-	 管易到账时间：FGYFINDate 
-	 单价折扣：FPriceDiscount 
-	 尾差处理标识：FTailDiffFlag 
-	 冲销数量(计价基本)：FWRITEOFFPRICEBASEQTY 
-	 冲销数量(销售基本)：FWRITEOFFSALEBASEQTY 
-	 冲销数量(库存基本)：FWRITEOFFSTOCKBASEQTY 
-	 冲销金额：FWRITEOFFAMOUNT 
-	 按子项结算：FSettleBySon 
-	 BOM分录内码：FBOMEntryId 
-	 物料（销售组织）：FMaterialID_Sal 
-	 退料单编码_序号：FMrbBillNo 
-	 退料单分录内码：FMrbEntryId 
-	 负数应收单分录内码：FArEntryId 
-	 VMI业务：FVmiBusinessStatus 
-	 入库日期：FINSTOCKDATE 
-	 行关联应收状态：FRowARStatus 
-	 合同履约成本：FApAmount 
-	 合同履约成本(本位币)：FApAmountLC 
-财务信息：SubHeadEntity 
-	 实体主键：FEntryId 
-	 结算方式：FSettleTypeId 
-	 收款条件：FChageCondition 
-	 结算组织：FSettleOrgId  (必填项)
-	 结算币别：FSettleCurrId  (必填项)
-	 本位币：FLocalCurrId 
-	 汇率类型：FExchangeTypeId 
-	 汇率：FExchangeRate 
-	 总成本(暂未使用)：FBillCostAmount 
-	 总成本（本位币）(暂未使用)：FBillCostAmount_LC 
-	 汇率精度：FPrecision 
-	 价税合计（本位币）：FBillAllAmount_LC 
-	 金额（本位币）：FBillAmount_LC 
-	 税额（本位币）：FBillTaxAmount_LC 
-	 价税合计：FBillAllAmount 
-	 金额：FBillAmount 
-	 税额：FBillTaxAmount 
-	 是否含税：FIsIncludedTax 
-	 价目表：FPriceListId 
-	 折扣表：FDiscountListId 
-	 结算组织客户：FSETTLECustomerID 
-	 货主供应商：FOwnerSupplierID 
-	 跨组织结算生成：FISGENFORIOS 
-	 价外税：FIsPriceExcludeTax 
-	 第三方系统来源：FThirdSrcType 
-	 第三方单据平台单号：FThirdBillId 
-	 第三方单据编号：FThirdBillNo 
-	 会员名称：FBuyerNick 
-	 收货人：FReceiverName 
-	 收货人地址：FReceiverAddress 
-	 收货人国家：FReceiverCountry 
-	 收货人城市：FReceiverCity 
-	 收货人手机：FReceiverMobile 
-	 收货人地区：FReceiverDistrict 
-	 收货人省份：FReceiverState 
-	 收货人电话：FReceiverPhone 
-	 会员编码：FVIPCODE 
-	 管易订单标记编码：FGYTAGCODE 
-	 管易订单标记名称：FGYTAGNAME 
-税务明细：FTaxDetailSubEntity 
-	 实体主键：FDetailID 
-	 税率名称：FTaxRateId 
-	 税率%：FTaxRate 
-	 税额：FTaxAmount 
-	 计入成本比例%：FCostPercent 
-	 计入成本金额：FCostAmount 
-	 增值税：FVAT 
-	 卖方代扣代缴：FSellerWithholding 
-	 买方代扣代缴：FBuyerWithholding 
-序列号子单据体：FSerialSubEntity 
-	 实体主键：FDetailID 
-	 序列号：FSerialNo 
-	 序列号：FSerialId 
-	 备注：FSerialNote 
-	 SN：FSN 
-	 IMEI1：FIMEI1 
-	 IMEI2：FIMEI2 
-	 MEID：FMEID 
-物流跟踪明细：FRetStockTrace 
-	 实体主键：FEntryID 
-	 物流公司：FLogComId 
-	 物流单号：FCarryBillNo  (必填项)
-	 发货日期：FDelTime 
-	 寄件人手机号：FPhoneNumber 
-	 起始地点：FFrom 
-	 终止地点：FTo 
-	 物流状态：FTraceStatus 
-	 签收时间：FReceiptTime 
-	 类型：FCarryBillNoType  (必填项)
-物流详细信息：FReturnStockTraceDetail 
-	 实体主键：FDetailID 
-	 时间：FTraceTime 
-	 物流详情：FTraceDetail 
-关联关系表：FEntity_Link 
-	 实体主键：FLinkId 
-	 业务流程图：FEntity_Link_FFlowId 
-	 推进路线：FEntity_Link_FFlowLineId 
-	 转换规则：FEntity_Link_FRuleId 
-	 源单表内码：FEntity_Link_FSTableId 
-	 源单表：FEntity_Link_FSTableName 
-	 源单内码：FEntity_Link_FSBillId 
-	 源单分录内码：FEntity_Link_FSId 
-	 原始携带量：FEntity_Link_FBaseunitQtyOld 
-	 修改携带量：FEntity_Link_FBaseunitQty 
-	 原始携带量：FEntity_Link_FSalBaseQtyOld 
-	 修改携带量：FEntity_Link_FSalBaseQty 
-	 原始携带量：FEntity_Link_FPriceBaseQtyOld 
-	 修改携带量：FEntity_Link_FPriceBaseQty 
-	 原始携带量：FEntity_Link_FAuxUnitQtyOld 
-	 修改携带量：FEntity_Link_FAuxUnitQty 
-	 迁移图：FEntity_Link_FLnkTrackerId 
-	 上游状态：FEntity_Link_FLnkSState 
-	 数量FLnk：FEntity_Link_FLnkAmount 
-	 迁移图：FEntity_Link_FLnk1TrackerId 
-	 上游状态：FEntity_Link_FLnk1SState 
-	 数量FLnk1：FEntity_Link_FLnk1Amount 
-	 迁移图：FEntity_Link_FLnk2TrackerId 
-	 上游状态：FEntity_Link_FLnk2SState 
-	 数量FLnk2：FEntity_Link_FLnk2Amount 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+基本信息: FBillHead
+实体主键: FID
+单据编号: FBillNo
+单据状态: FDocumentStatus
+销售组织: FSaleOrgId
+日期: FDate
+库存组织: FStockOrgId
+退货客户: FRetcustId
+库存组: FStockerGroupId
+仓管员: FStockerId
+库存部门: FStockDeptId
+销售组: FSaleGroupId
+销售部门: FSaledeptid
+销售员: FSalesManId
+结算方: FSettleCustId
+付款方: FPayCustId
+创建人: FCreatorId
+创建日期: FCreateDate
+最后修改人: FModifierId
+最后修改日期: FModifyDate
+审核人: FApproverId
+审核日期: FApproveDate
+作废人: FCancellerId
+作废日期: FCancelDate
+作废状态: FCancelStatus
+单据类型: FBillTypeID
+收货方: FReceiveCustId
+货主类型: FOwnerTypeIdHead
+货主: FOwnerIdHead
+业务类型: FBussinessType
+退货原因: FReturnReason
+收货方地址: FReceiveAddress
+交货地点: FHeadLocId
+信用检查结果: FCreditCheckResult
+跨组织业务类型: FTransferBizType
+对应组织: FCorrespondOrgId
+收货方联系人: FReceiveCusContact
+组织间结算跨法人标识: FIsInterLegalPerson
+序列号上传: FScanBox
+创建日期偏移单位: FCDateOffsetUnit
+创建日期偏移量: FCDateOffsetValue
+备注: FHeadNote
+整单服务标识: FIsTotalServiceOrCost
+零售单日结生成: FGenFromPOS_CMK
+销售门店: FBranchId
+网店编码: FSHOPNUMBER
+管易退货日期: FGYDATE
+销售渠道: FSALECHANNEL
+管易物流单号: FGYExpressNo
+收货人姓名: FLinkMan
+联系电话: FLinkPhone
+预设基础资料字段1: FPRESETBASE1
+预设基础资料字段2: FPRESETBASE2
+预设辅助资料字段1: FPRESETASSISTANT1
+预设辅助资料字段2: FPRESETASSISTANT2
+全部分录仅退款不退货: FAllRefundNoGoods
+管易退货售后类型: FGYRefundType
+关联应收状态: FARStatus
+项目: F_TJKT_Base_83g_re5_43c
+退货类型: F_TJKT_Combo_83g
+明细信息: FEntity
+实体主键: FENTRYID
+物料编码: FMaterialId
+物料名称: FMaterialName
+规格型号: FMaterialModel
+物料类别: FMaterialType
+库存单位: FUnitID
+应退数量: FMustqty
+实退数量: FRealQty
+仓库: FStockId
+库存状态: FStockstatusId
+货主类型: FOwnerTypeId
+货主: FOwnerId
+保管者类型: FKeeperTypeId
+保管者: FKeeperId
+BOM版本: FBOMId
+辅助属性: FAuxpropId
+生产日期: FProduceDate
+有效期至: FExpiryDate
+基本单位: FBaseunitId
+库存基本数量: FBaseunitQty
+库存辅单位: FAuxUnitId
+库存辅单位数量: FAuxUnitQty
+成本价（本位币）: FCostPrice
+总成本: FEntryCostAmount
+订单单号: FOrderNo
+备注: FNote
+关联应收数量（计价）: FInvoicedQty
+(作废)关联开票数量(基本单位): FBaseInvoicedQty
+累计应收数量（销售）: FSumInvoicedQty
+(作废)累计开票金额: FSumInvoicedAmt
+累计收款金额: FSumRecievedAmt
+库存更新标示: FStockFlag
+源单类型: FSrcBillTypeID
+保质期单位: FExpUnit
+保质期: FExpPeriod
+仓位: FStocklocId
+牙博士: FF100001
+客户物料编码: FMapId
+客户物料名称: FMapName
+批号: FLot
+退货类型: FReturnType
+(作废)累计开票数量(基本单位): FBaseSumInvoicedQty
+总成本（本位币）: FCostAmount_LC
+计价单位: FPriceUnitId
+计价数量: FPriceUnitQty
+单价: FPrice
+含税单价: FTaxPrice
+税组合: FTaxCombination
+税率%: FEntryTaxRate
+价格系数: FPriceCoefficient
+系统定价: FSysPrice
+最低限价: FLimitDownPrice
+折前金额: FBefDisAmt
+折前价税合计: FBefDisAllAmt
+折扣率%: FDiscountRate
+折扣额: FDiscount
+金额: FAmount
+金额（本位币）: FAmount_LC
+税额: FEntryTaxAmount
+税额（本位币）: FTaxAmount_LC
+价税合计: FAllAmount
+价税合计（本位币）: FAllAmount_LC
+是否赠品: FIsFree
+净价: FTaxNetPrice
+退货日期: FDeliveryDate
+关联应收数量（计价基本）: FBaseARJoinQty
+业务流程: FBFLowId
+累计应收数量（销售基本）: FBASEARQTY
+关联应收金额: FARJOINAMOUNT
+累计应收金额: FARAMOUNT
+销售成本价: FSalCostPrice
+源单编号: FSrcBillNo
+订单类型: FSOBILLTYPEID
+序列号单位: FSNUnitID
+序列号单位数量: FSNQty
+计划跟踪号: FMtoNo
+项目编号: FProjectNo
+拒收标志: FRefuseFlag
+消耗汇总: FISCONSUMESUM
+辅单位: FExtAuxUnitId
+实退数量（辅单位）: FExtAuxUnitQty
+当前库存: FInventoryQty
+计价基本数量: FPriceBaseQty
+销售单位: FSalUnitID
+销售数量: FSalUnitQty
+销售基本数量: FSalBaseQty
+质量类型: FQualifyType
+销售基本分子: FSalBaseNum
+库存基本分母: FStockBaseDen
+关联应收数量（库存基本）: FStockBaseARJoinQty
+携带的主业务单位: FSRCBIZUNITID
+明细货主供应商: FEOwnerSupplierId
+组织间结算跨法人标识: FIsOverLegalOrg
+明细结算组织客户: FESettleCustomerId
+关联应收数量（销售基本）: FSalBaseARJoinQty
+行价目表: FPriceListEntry
+未关联应收数量（计价单位）: FARNOTJOINQTY
+销售订单EntryId: FSOEntryId
+退货检验: FIsReturnCheck
+产品类型: FRowType
+父项产品: FParentMatId
+行标识: FRowId
+父行标识: FParentRowId
+管易订单单号: FThirdEntryId
+第三方单据ID: FETHIRDBILLID
+第三方单据编号: FETHIRDBILLNO
+服务上下文: FServiceContext
+门店供货价: FProPrice
+供货金额: FProAmount
+零售条形码: FBarcode
+管易是否到账: FGYFINSTATUS
+管易到账时间: FGYFINDate
+单价折扣: FPriceDiscount
+尾差处理标识: FTailDiffFlag
+冲销数量(计价基本): FWRITEOFFPRICEBASEQTY
+冲销数量(销售基本): FWRITEOFFSALEBASEQTY
+冲销数量(库存基本): FWRITEOFFSTOCKBASEQTY
+冲销金额: FWRITEOFFAMOUNT
+按子项结算: FSettleBySon
+BOM分录内码: FBOMEntryId
+物料（销售组织）: FMaterialID_Sal
+退料单编码_序号: FMrbBillNo
+退料单分录内码: FMrbEntryId
+负数应收单分录内码: FArEntryId
+VMI业务: FVmiBusinessStatus
+入库日期: FINSTOCKDATE
+行关联应收状态: FRowARStatus
+合同履约成本: FApAmount
+合同履约成本(本位币): FApAmountLC
+结算方式: FSettleTypeId
+收款条件: FChageCondition
+结算组织: FSettleOrgId
+结算币别: FSettleCurrId
+本位币: FLocalCurrId
+汇率类型: FExchangeTypeId
+汇率: FExchangeRate
+总成本(暂未使用): FBillCostAmount
+总成本（本位币）(暂未使用): FBillCostAmount_LC
+汇率精度: FPrecision
+价税合计（本位币）: FBillAllAmount_LC
+金额（本位币）: FBillAmount_LC
+税额（本位币）: FBillTaxAmount_LC
+价税合计: FBillAllAmount
+金额: FBillAmount
+税额: FBillTaxAmount
+是否含税: FIsIncludedTax
+价目表: FPriceListId
+折扣表: FDiscountListId
+结算组织客户: FSETTLECustomerID
+货主供应商: FOwnerSupplierID
+跨组织结算生成: FISGENFORIOS
+价外税: FIsPriceExcludeTax
+第三方系统来源: FThirdSrcType
+第三方单据平台单号: FThirdBillId
+第三方单据编号: FThirdBillNo
+会员名称: FBuyerNick
+收货人: FReceiverName
+收货人地址: FReceiverAddress
+收货人国家: FReceiverCountry
+收货人城市: FReceiverCity
+收货人手机: FReceiverMobile
+收货人地区: FReceiverDistrict
+收货人省份: FReceiverState
+收货人电话: FReceiverPhone
+会员编码: FVIPCODE
+管易订单标记编码: FGYTAGCODE
+管易订单标记名称: FGYTAGNAME
+税务明细: FTaxDetailSubEntity
+实体主键: FDetailID
+税率名称: FTaxRateId
+税率%: FTaxRate
+税额: FTaxAmount
+计入成本比例%: FCostPercent
+计入成本金额: FCostAmount
+增值税: FVAT
+卖方代扣代缴: FSellerWithholding
+买方代扣代缴: FBuyerWithholding
+序列号子单据体: FSerialSubEntity
+序列号: FSerialNo
+序列号: FSerialId
+备注: FSerialNote
+SN: FSN
+IMEI1: FIMEI1
+IMEI2: FIMEI2
+MEID: FMEID
+物流跟踪明细: FRetStockTrace
+物流公司: FLogComId
+物流单号: FCarryBillNo
+发货日期: FDelTime
+寄件人手机号: FPhoneNumber
+起始地点: FFrom
+终止地点: FTo
+物流状态: FTraceStatus
+签收时间: FReceiptTime
+类型: FCarryBillNoType
+物流详细信息: FReturnStockTraceDetail
+时间: FTraceTime
+物流详情: FTraceDetail
+关联关系表: FEntity_Link
+实体主键: FLinkId
+业务流程图: FEntity_Link_FFlowId
+推进路线: FEntity_Link_FFlowLineId
+转换规则: FEntity_Link_FRuleId
+源单表内码: FEntity_Link_FSTableId
+源单表: FEntity_Link_FSTableName
+源单内码: FEntity_Link_FSBillId
+源单分录内码: FEntity_Link_FSId
+原始携带量: FEntity_Link_FBaseunitQtyOld
+修改携带量: FEntity_Link_FBaseunitQty
+原始携带量: FEntity_Link_FSalBaseQtyOld
+修改携带量: FEntity_Link_FSalBaseQty
+原始携带量: FEntity_Link_FPriceBaseQtyOld
+修改携带量: FEntity_Link_FPriceBaseQty
+原始携带量: FEntity_Link_FAuxUnitQtyOld
+修改携带量: FEntity_Link_FAuxUnitQty
+迁移图: FEntity_Link_FLnkTrackerId
+上游状态: FEntity_Link_FLnkSState
+数量FLnk: FEntity_Link_FLnkAmount
+迁移图: FEntity_Link_FLnk1TrackerId
+上游状态: FEntity_Link_FLnk1SState
+数量FLnk1: FEntity_Link_FLnk1Amount
+迁移图: FEntity_Link_FLnk2TrackerId
+上游状态: FEntity_Link_FLnk2SState
+数量FLnk2: FEntity_Link_FLnk2Amount

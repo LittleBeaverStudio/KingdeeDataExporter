@@ -1,771 +1,383 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.NeedUpDateFields：需要更新的字段，数组类型，格式：[key1,key2,...] （非必录）注（更新字段时Model数据包中必须设置内码，若更新单据体字段还需设置分录内码）
-     2.2.NeedReturnFields：需返回结果的字段集合，数组类型，格式：[key,entitykey.key,...]（非必录） 注（返回单据体字段格式：entitykey.key）
-     2.3.IsDeleteEntry：是否删除已存在的分录，布尔类型，默认true（非必录）
-     2.4.SubSystemId：表单所在的子系统内码，字符串类型（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认false（非必录）
-     2.6.IsEntryBatchFill：是否批量填充分录，默认true（非必录）
-     2.7.ValidateFlag：是否验证数据合法性标志，布尔类型，默认true（非必录）注（设为false时不对数据合法性进行校验）
-     2.8.NumberSearch：是否用编码搜索基础资料，布尔类型，默认true（非必录）
-     2.9.IsAutoAdjustField：是否自动调整JSON字段顺序，布尔类型，默认false（非必录）
-     2.10.InterationFlags：交互标志集合，字符串类型，分号分隔，格式："flag1;flag2;..."（非必录） 例如（允许负库存标识：STK_InvCheckResult）
-     2.11.IgnoreInterationFlag：是否允许忽略交互，布尔类型，默认true（非必录）
-     2.12.IsControlPrecision：是否控制精度，为true时对金额、单价和数量字段进行精度验证，默认false（非必录）
-     2.13.ValidateRepeatJson：校验Json数据包是否重复传入，一旦重复传入，接口调用失败，传true则启用校验，传false则不校验（非必录）
-     2.14.Model：表单数据包，JSON类型（必录）
-备注:
-1.示例Model数据包中字段顺序不建议改变，否则可能会有相互影响，如果出现字段值被覆盖或丢失，则可以尝试把字段顺序向后调整一下。
-2.示例Model数据包默认包含允许引入的字段，实际按需构建既可。
-3.如需创建关联关系，可参考https://club.kingdee.com/forum.php?mod=viewthread&tid=1394265 。
-4.对于重要API接口，应设置幂等性校验、设置对应候选键（唯一性字段）的唯一索引等防重调用机制，以防并发导致数据重复。
-
-二、返回结果：
-{"Result":{"ResponseStatus":{"ErrorCode":"","IsSuccess":"false","Errors":[{"FieldName":"","Message":"","DIndex":0}],"SuccessEntitys":[{"Id":"","Number":"","DIndex":0}],"SuccessMessages":[{"FieldName":"","Message":"","DIndex":0}],"MsgCode":""},"Id":"","Number":"","NeedReturnData":[{}]}}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/k3cloud/");
-client.Save("PUR_PurchaseOrder","{"NeedUpDateFields":[],"NeedReturnFields":[],"IsDeleteEntry":"false","SubSystemId":"","IsVerifyBaseDataField":"false","IsEntryBatchFill":"true","ValidateFlag":"true","NumberSearch":"true","IsAutoAdjustField":"true","InterationFlags":"","IgnoreInterationFlag":"","IsControlPrecision":"false","ValidateRepeatJson":"true","Model":{"FID":0,"FBillTypeID":{"FNUMBER":""},"FBillNo":"","FBusinessType":"","FDate":"1900-01-01","FSupplierId":{"FNumber":""},"FPurchaseOrgId":{"FNumber":""},"FPurchaseDeptId":{"FNumber":""},"FPurchaserGroupId":{"FNumber":""},"FPurchaserId":{"FNumber":""},"FProviderId":{"FNumber":""},"FProviderContactId":{"FCONTACTNUMBER":""},"FProviderAddress":"","FSettleId":{"FNumber":""},"FChargeId":{"FNumber":""},"FConfirmerId":{"FUserID":""},"FConfirmDate":"1900-01-01","FCorrespondOrgId":{"FNumber":""},"FProviderContact":"","FSourceBillNo":"","FIsModificationOperator":"false","FChangeStatus":"","FACCTYPE":"","FProviderEMail":"","FCloseReason":"","FIsMobBill":"false","F_TJKT_Base_83g":{"FNUMBER":""},"F_TJKT_Base_apv":{"FNUMBER":""},"F_PSVQ_Text_rco":"","FPOOrderFinance":{"FEntryId":0,"FSettleCurrId":{"FNumber":""},"FPayConditionId":{"FNumber":""},"FSettleModeId":{"FNumber":""},"FExchangeTypeId":{"FNumber":""},"FExchangeRate":0,"FPriceListId":{"FNumber":""},"FDiscountListId":{"FNumber":""},"FPriceTimePoint":"","FFOCUSSETTLEORGID":{"FNumber":""},"FIsIncludedTax":"false","FISPRICEEXCLUDETAX":"false","FLocalCurrId":{"FNumber":""},"FPayAdvanceBillId":{},"FPAYADVANCEAMOUNT":0,"FSupToOderExchangeBusRate":0,"FSEPSETTLE":"false","FDepositRatio":0,"FAllDisCount":0,"FUPPERBELIEL":0},"FPOOrderPay":{"FEntryId":0},"FPOOrderClause":[{"FEntryID":0,"FClauseId":{"FNumber":""},"FClauseDesc":""}],"FPOOrderEntry":[{"FEntryID":0,"FProductType":"","FChargeProjectID":{"FNumber":""},"FMaterialId":{"FNumber":""},"FBomId":{"FNumber":""},"FAuxPropId":{},"FMaterialDesc":"","FUnitId":{"FNumber":""},"FQty":0,"FPriceUnitId":{"FNumber":""},"FPriceUnitQty":0,"FPriceBaseQty":0,"FDeliveryDate":"1900-01-01","FLocation":"","FLocationAddress":"","FPrice":0,"FTaxPrice":0,"FEntryDiscountRate":0,"FTaxCombination":{"FNumber":""},"FEntryTaxRate":0,"FRequireOrgId":{"FNumber":""},"FRequireDeptId":{"FNumber":""},"FRequireStaffId":{},"FReceiveOrgId":{"FNumber":""},"FReceiveDeptId":{"FNUMBER":""},"FEntrySettleOrgId":{"FNumber":""},"FGiveAway":"false","FEntryNote":"","FSupMatId":"","FSupMatName":"","FStockUnitID":{"FNumber":""},"FStockQty":0,"FStockBaseQty":0,"FLot":{"FNumber":""},"FSupplierLot":"","FProcesser":{"FNumber":""},"FDeliveryControl":"false","FTimeControl":"false","FDeliveryMaxQty":0,"FDeliveryMinQty":0,"FDeliveryBeforeDays":0,"FDeliveryDelayDays":0,"FDeliveryEarlyDate":"1900-01-01","FDeliveryLastDate":"1900-01-01","FPriceCoefficient":0,"FEntrySettleModeId":{"FNumber":""},"FConsumeSumQty":0,"FSrcBillTypeId":"","FSrcBillNo":"","FContractNo":"","FReqTraceNo":"","FMtoNo":"","FDEMANDTYPE":"","FDEMANDBILLNO":"","FDEMANDBILLENTRYSEQ":0,"FDEMANDBILLENTRYID":0,"FLocationId":{"FNumber":""},"FPlanConfirm":"false","FSalUnitID":{"FNumber":""},"FSalQty":0,"FSalJoinQty":0,"FBaseSalJoinQty":0,"FSetPriceUnitID":{"FNumber":""},"FInventoryQty":0,"FCentSettleOrgId":{"FNumber":""},"FDispSettleOrgId":{"FNumber":""},"FGroup":0,"FDeliveryStockStatus":{"FNumber":""},"FMaxPrice":0,"FMinPrice":0,"FIsStock":"false","FBaseConsumeSumQty":0,"FSalBaseQty":0,"FSubOrgId":{"FNumber":""},"FEntryPayOrgId":{"FNumber":""},"FPriceDiscount":0,"FAllAmountExceptDisCount":0,"FStockId":{"FNUMBER":""},"FStockLocId":{"FSTOCKLOCID__FF100001":{"FNumber":""}},"FEntryDeliveryPlan":[{"FDetailId":0,"FDeliveryDate_Plan":"1900-01-01","FPlanQty":0,"FELocation":"","FELocationAddress":"","FSUPPLIERDELIVERYDATE":"1900-01-01","FPREARRIVALDATE":"1900-01-01","FTRLT":0,"FConfirmDeliQty":0,"FConfirmDeliDate":"1900-01-01","FConfirmInfo":"","FELocationId":{"FNumber":""}}],"FTaxDetailSubEntity":[{"FDetailID":0,"FTaxRateId":{"FNumber":""},"FTaxRate":0}]}],"FIinstallment":[{"FENTRYID":0,"FYFDATE":"1900-01-01","FYFRATIO":0,"FYFAMOUNT":0,"FISPREPAYMENT":"false","FInsPrepaidAmount":0,"FRemarks":"","FPayMaterialId":{"FNUMBER":""},"FMATERIALSEQ":0,"FPayPlanQty":0,"FPayPlanPrice":0,"FPURCHASEORDERNO":"","FOrderEntryId":0,"FinsPayAdvanceRate":0,"FInsPayAdvanceAmount":0,"FPAYPLANPRICEUNITID":{"FNumber":""},"FBasePriceUnit":{"FNumber":""},"FBasePayPlanQty":0,"FPayMaterialDesc":"","FPayAuxPropId":{},"FPayChargeProjectID":{"FNUMBER":""},"FOrderActualPaySubEntity":[{"FDetailID":0}]}],"FPaymentEntry":[{"FEntryID":0}]}}");
-
-四、JSON格式数据：
-{
-    "NeedUpDateFields": [],
-    "NeedReturnFields": [],
-    "IsDeleteEntry": "false",
-    "SubSystemId": "",
-    "IsVerifyBaseDataField": "false",
-    "IsEntryBatchFill": "true",
-    "ValidateFlag": "true",
-    "NumberSearch": "true",
-    "IsAutoAdjustField": "true",
-    "InterationFlags": "",
-    "IgnoreInterationFlag": "",
-    "IsControlPrecision": "false",
-    "ValidateRepeatJson": "true",
-    "Model": {
-        "FID": 0,
-        "FBillTypeID": {
-            "FNUMBER": ""
-        },
-        "FBillNo": "",
-        "FBusinessType": "",
-        "FDate": "1900-01-01",
-        "FSupplierId": {
-            "FNumber": ""
-        },
-        "FPurchaseOrgId": {
-            "FNumber": ""
-        },
-        "FPurchaseDeptId": {
-            "FNumber": ""
-        },
-        "FPurchaserGroupId": {
-            "FNumber": ""
-        },
-        "FPurchaserId": {
-            "FNumber": ""
-        },
-        "FProviderId": {
-            "FNumber": ""
-        },
-        "FProviderContactId": {
-            "FCONTACTNUMBER": ""
-        },
-        "FProviderAddress": "",
-        "FSettleId": {
-            "FNumber": ""
-        },
-        "FChargeId": {
-            "FNumber": ""
-        },
-        "FConfirmerId": {
-            "FUserID": ""
-        },
-        "FConfirmDate": "1900-01-01",
-        "FCorrespondOrgId": {
-            "FNumber": ""
-        },
-        "FProviderContact": "",
-        "FSourceBillNo": "",
-        "FIsModificationOperator": "false",
-        "FChangeStatus": "",
-        "FACCTYPE": "",
-        "FProviderEMail": "",
-        "FCloseReason": "",
-        "FIsMobBill": "false",
-        "F_TJKT_Base_83g": {
-            "FNUMBER": ""
-        },
-        "F_TJKT_Base_apv": {
-            "FNUMBER": ""
-        },
-        "F_PSVQ_Text_rco": "",
-        "FPOOrderFinance": {
-            "FEntryId": 0,
-            "FSettleCurrId": {
-                "FNumber": ""
-            },
-            "FPayConditionId": {
-                "FNumber": ""
-            },
-            "FSettleModeId": {
-                "FNumber": ""
-            },
-            "FExchangeTypeId": {
-                "FNumber": ""
-            },
-            "FExchangeRate": 0,
-            "FPriceListId": {
-                "FNumber": ""
-            },
-            "FDiscountListId": {
-                "FNumber": ""
-            },
-            "FPriceTimePoint": "",
-            "FFOCUSSETTLEORGID": {
-                "FNumber": ""
-            },
-            "FIsIncludedTax": "false",
-            "FISPRICEEXCLUDETAX": "false",
-            "FLocalCurrId": {
-                "FNumber": ""
-            },
-            "FPayAdvanceBillId": {},
-            "FPAYADVANCEAMOUNT": 0,
-            "FSupToOderExchangeBusRate": 0,
-            "FSEPSETTLE": "false",
-            "FDepositRatio": 0,
-            "FAllDisCount": 0,
-            "FUPPERBELIEL": 0
-        },
-        "FPOOrderPay": {
-            "FEntryId": 0
-        },
-        "FPOOrderClause": [
-            {
-                "FEntryID": 0,
-                "FClauseId": {
-                    "FNumber": ""
-                },
-                "FClauseDesc": ""
-            }
-        ],
-        "FPOOrderEntry": [
-            {
-                "FEntryID": 0,
-                "FProductType": "",
-                "FChargeProjectID": {
-                    "FNumber": ""
-                },
-                "FMaterialId": {
-                    "FNumber": ""
-                },
-                "FBomId": {
-                    "FNumber": ""
-                },
-                "FAuxPropId": {},
-                "FMaterialDesc": "",
-                "FUnitId": {
-                    "FNumber": ""
-                },
-                "FQty": 0,
-                "FPriceUnitId": {
-                    "FNumber": ""
-                },
-                "FPriceUnitQty": 0,
-                "FPriceBaseQty": 0,
-                "FDeliveryDate": "1900-01-01",
-                "FLocation": "",
-                "FLocationAddress": "",
-                "FPrice": 0,
-                "FTaxPrice": 0,
-                "FEntryDiscountRate": 0,
-                "FTaxCombination": {
-                    "FNumber": ""
-                },
-                "FEntryTaxRate": 0,
-                "FRequireOrgId": {
-                    "FNumber": ""
-                },
-                "FRequireDeptId": {
-                    "FNumber": ""
-                },
-                "FRequireStaffId": {},
-                "FReceiveOrgId": {
-                    "FNumber": ""
-                },
-                "FReceiveDeptId": {
-                    "FNUMBER": ""
-                },
-                "FEntrySettleOrgId": {
-                    "FNumber": ""
-                },
-                "FGiveAway": "false",
-                "FEntryNote": "",
-                "FSupMatId": "",
-                "FSupMatName": "",
-                "FStockUnitID": {
-                    "FNumber": ""
-                },
-                "FStockQty": 0,
-                "FStockBaseQty": 0,
-                "FLot": {
-                    "FNumber": ""
-                },
-                "FSupplierLot": "",
-                "FProcesser": {
-                    "FNumber": ""
-                },
-                "FDeliveryControl": "false",
-                "FTimeControl": "false",
-                "FDeliveryMaxQty": 0,
-                "FDeliveryMinQty": 0,
-                "FDeliveryBeforeDays": 0,
-                "FDeliveryDelayDays": 0,
-                "FDeliveryEarlyDate": "1900-01-01",
-                "FDeliveryLastDate": "1900-01-01",
-                "FPriceCoefficient": 0,
-                "FEntrySettleModeId": {
-                    "FNumber": ""
-                },
-                "FConsumeSumQty": 0,
-                "FSrcBillTypeId": "",
-                "FSrcBillNo": "",
-                "FContractNo": "",
-                "FReqTraceNo": "",
-                "FMtoNo": "",
-                "FDEMANDTYPE": "",
-                "FDEMANDBILLNO": "",
-                "FDEMANDBILLENTRYSEQ": 0,
-                "FDEMANDBILLENTRYID": 0,
-                "FLocationId": {
-                    "FNumber": ""
-                },
-                "FPlanConfirm": "false",
-                "FSalUnitID": {
-                    "FNumber": ""
-                },
-                "FSalQty": 0,
-                "FSalJoinQty": 0,
-                "FBaseSalJoinQty": 0,
-                "FSetPriceUnitID": {
-                    "FNumber": ""
-                },
-                "FInventoryQty": 0,
-                "FCentSettleOrgId": {
-                    "FNumber": ""
-                },
-                "FDispSettleOrgId": {
-                    "FNumber": ""
-                },
-                "FGroup": 0,
-                "FDeliveryStockStatus": {
-                    "FNumber": ""
-                },
-                "FMaxPrice": 0,
-                "FMinPrice": 0,
-                "FIsStock": "false",
-                "FBaseConsumeSumQty": 0,
-                "FSalBaseQty": 0,
-                "FSubOrgId": {
-                    "FNumber": ""
-                },
-                "FEntryPayOrgId": {
-                    "FNumber": ""
-                },
-                "FPriceDiscount": 0,
-                "FAllAmountExceptDisCount": 0,
-                "FStockId": {
-                    "FNUMBER": ""
-                },
-                "FStockLocId": {
-                    "FSTOCKLOCID__FF100001": {
-                        "FNumber": ""
-                    }
-                },
-                "FEntryDeliveryPlan": [
-                    {
-                        "FDetailId": 0,
-                        "FDeliveryDate_Plan": "1900-01-01",
-                        "FPlanQty": 0,
-                        "FELocation": "",
-                        "FELocationAddress": "",
-                        "FSUPPLIERDELIVERYDATE": "1900-01-01",
-                        "FPREARRIVALDATE": "1900-01-01",
-                        "FTRLT": 0,
-                        "FConfirmDeliQty": 0,
-                        "FConfirmDeliDate": "1900-01-01",
-                        "FConfirmInfo": "",
-                        "FELocationId": {
-                            "FNumber": ""
-                        }
-                    }
-                ],
-                "FTaxDetailSubEntity": [
-                    {
-                        "FDetailID": 0,
-                        "FTaxRateId": {
-                            "FNumber": ""
-                        },
-                        "FTaxRate": 0
-                    }
-                ]
-            }
-        ],
-        "FIinstallment": [
-            {
-                "FENTRYID": 0,
-                "FYFDATE": "1900-01-01",
-                "FYFRATIO": 0,
-                "FYFAMOUNT": 0,
-                "FISPREPAYMENT": "false",
-                "FInsPrepaidAmount": 0,
-                "FRemarks": "",
-                "FPayMaterialId": {
-                    "FNUMBER": ""
-                },
-                "FMATERIALSEQ": 0,
-                "FPayPlanQty": 0,
-                "FPayPlanPrice": 0,
-                "FPURCHASEORDERNO": "",
-                "FOrderEntryId": 0,
-                "FinsPayAdvanceRate": 0,
-                "FInsPayAdvanceAmount": 0,
-                "FPAYPLANPRICEUNITID": {
-                    "FNumber": ""
-                },
-                "FBasePriceUnit": {
-                    "FNumber": ""
-                },
-                "FBasePayPlanQty": 0,
-                "FPayMaterialDesc": "",
-                "FPayAuxPropId": {},
-                "FPayChargeProjectID": {
-                    "FNUMBER": ""
-                },
-                "FOrderActualPaySubEntity": [
-                    {
-                        "FDetailID": 0
-                    }
-                ]
-            }
-        ],
-        "FPaymentEntry": [
-            {
-                "FEntryID": 0
-            }
-        ]
-    }
-}
-
-五、字段说明：
-基本信息：FBillHead 
-	 实体主键：FID 
-	 单据编号：FBillNo 
-	 单据状态：FDocumentStatus 
-	 采购日期：FDate  (必填项)
-	 采购组织：FPurchaseOrgId  (必填项)
-	 供应商：FSupplierId  (必填项)
-	 采购组：FPurchaserGroupId 
-	 采购部门：FPurchaseDeptId 
-	 创建人：FCreatorId 
-	 创建日期：FCreateDate 
-	 最后修改人：FModifierId 
-	 最后修改日期：FModifyDate 
-	 审核人：FApproverId 
-	 审核日期：FApproveDate 
-	 作废人：FCancellerId 
-	 作废日期：FCancelDate 
-	 作废状态：FCancelStatus 
-	 关闭状态：FCloseStatus 
-	 采购员：FPurchaserId 
-	 关闭人：FCloserId 
-	 关闭日期：FCloseDate 
-	 单据类型：FBillTypeID  (必填项)
-	 结算方：FSettleId 
-	 收款方：FChargeId 
-	 供货方：FProviderId 
-	 变更人：FChangerId 
-	 版本号：FVersionNo 
-	 变更日期：FChangeDate 
-	 变更原因：FChangeReason 
-	 业务类型：FBusinessType  (必填项)
-	 供货方地址：FProviderAddress 
-	 指定供应商：FAssignSupplierId 
-	 对应组织：FCorrespondOrgId 
-	 供货方联系人(旧)：FProviderContact 
-	 修改变更操作：FIsModificationOperator 
-	 供应商协同平台订单编号(6.1废弃)：FNetOrderBillNo 
-	 供应商协同平台订单ID(6.1废弃)：FNetOrderBillId 
-	 确认状态：FConfirmStatus 
-	 确认人：FConfirmerId 
-	 确认日期：FConfirmDate 
-	 供货方联系人：FProviderContactId 
-	 职务：FProviderJob 
-	 手机：FProviderPhone 
-	 源单编号：FSourceBillNo 
-	 变更状态：FChangeStatus 
-	 验收方式：FACCTYPE 
-	 释放采购申请：FRelReqStatus 
-	 手工关闭：FMANUALCLOSE 
-	 邮箱：FProviderEMail 
-	 关闭原因：FCloseReason 
-	 移动单据：FIsMobBill 
-	 分销销售订单生成：FIsUseDrpSalePOPush 
-	 生成直运出入库：FIsCreateStraightOutIN 
-	 合同类型：FContractType 
-	 项目：F_TJKT_Base_83g 
-	 摘要：F_TJKT_ChangeReason_re5 
-	 客户：F_TJKT_Base_apv 
-	 合同号：F_PSVQ_Text_rco 
-财务信息：FPOOrderFinance 
-	 实体主键：FEntryId 
-	 整单费用：FBillCost 
-	 金额：FBillAmount 
-	 价税合计：FBillAllAmount 
-	 价目表：FPriceListId 
-	 折扣表：FDiscountListId 
-	 结算币别：FSettleCurrId  (必填项)
-	 税额：FBillTaxAmount 
-	 定价时点：FPriceTimePoint  (必填项)
-	 本位币：FLocalCurrId 
-	 金额(本位币)：FBillAmount_LC 
-	 税额(本位币)：FBillTaxAmount_LC 
-	 价税合计(本位币)：FBillAllAmount_LC 
-	 汇率类型：FExchangeTypeId 
-	 汇率：FExchangeRate 
-	 付款条件：FPayConditionId 
-	 预付单号：FPayAdvanceBillId 
-	 含税：FIsIncludedTax 
-	 结算方式：FSettleModeId 
-	 预付已核销金额：FPreMatchAmountFor 
-	 集中结算(6.0废弃)：FSEPSETTLE 
-	 单次预付额度：FPAYADVANCEAMOUNT 
-	 单次预付额度汇率：FSupToOderExchangeBusRate 
-	 集中结算组织：FFOCUSSETTLEORGID 
-	 价外税：FISPRICEEXCLUDETAX 
-	 保证金比例%：FDepositRatio 
-	 保证金：FDeposit 
-	 关联保证金：FRelateDeposit 
-	 申请关联保证金：FAPPLYRELATEDEPOSIT 
-	 关联退款保证金：FRelateRefundDeposit 
-	 整单折扣额：FAllDisCount 
-	 超额比例%：FUPPERBELIEL 
-订单条款：FPOOrderClause 
-	 实体主键：FEntryID 
-	 描述：FClauseDesc 
-	 条款编码：FClauseId 
-	 条款名称：FClauseName 
-	 条款类型：FClauseType 
-	 条款内容：FClauseContent 
-明细信息：FPOOrderEntry 
-	 实体主键：FEntryID 
-	 物料编码：FMaterialId  (必填项)
-	 采购数量：FQty 
-	 单价：FPrice 
-	 折扣率%：FEntryDiscountRate 
-	 税率%：FEntryTaxRate 
-	 净价：FTaxNetPrice 
-	 金额：FEntryAmount 
-	 价税合计：FAllAmount 
-	 折扣额：FEntryDiscount 
-	 备注：FEntryNote 
-	 累计收料数量：FReceiveQty 
-	 累计入库数量：FStockInQty 
-	 应付数量：FInvoiceQty 
-	 应付金额：FInvoiceAmount 
-	 累计付款金额(已废弃)：FPayAmount 
-	 价格系数：FPriceCoefficient 
-	 计价数量：FPriceUnitQty 
-	 需求部门：FRequireDeptId 
-	 需求人：FRequireStaffId 
-	 交货地点：FLocationId 
-	 交货地址：FLocationAddress 
-	 控制交货数量：FDeliveryControl 
-	 交货提前天数：FDeliveryBeforeDays 
-	 交货延迟天数：FDeliveryDelayDays 
-	 控制交货时间：FTimeControl 
-	 物料名称：FMaterialName 
-	 规格型号：FModel 
-	 物料类别：FMaterialType 
-	 物料版本：FMaterialVersion 
-	 业务冻结：FMRPFreezeStatus 
-	 业务终止：FMRPTerminateStatus 
-	 业务关闭：FMRPCloseStatus 
-	 供应商批号：FSupplierLot 
-	 剩余收料数量：FRemainReceiveQty 
-	 剩余入库数量：FRemainStockINQty 
-	 含税单价：FTaxPrice 
-	 税额：FEntryTaxAmount 
-	 冻结人：FFreezerId 
-	 冻结日期：FFreezeDate 
-	 终止人：FTerminaterId 
-	 终止日期：FTerminateDate 
-	 收料组织：FReceiveOrgId 
-	 需求组织：FRequireOrgId 
-	 行费用：FRowCost 
-	 付款组织：FEntryPayOrgId 
-	 结算组织：FEntrySettleOrgId  (必填项)
-	 加工商：FProcesser 
-	 系统定价：FSysPrice 
-	 价格上限：FUpPrice 
-	 价格下限：FDownPrice 
-	 整单折扣分摊：FBillDisApportion 
-	 计划确认：FPlanConfirm 
-	 BOM版本：FBomId 
-	 累计退料数量：FMrbQty 
-	 变更标志：FChangeFlag 
-	 金额(本位币)：FAmount_LC 
-	 价税合计(本位币)：FAllAmount_LC 
-	 税额(本位币)：FTaxAmount_LC 
-	 关联应付数量(计价基本)：FBaseAPJoinQty 
-	 交货库存状态：FDeliveryStockStatus 
-	 采购单位：FUnitId  (必填项)
-	 计价单位：FPriceUnitId  (必填项)
-	 基本单位：FBaseUnitId 
-	 累计退料数量(基本)：FBASEMRBQTY 
-	 累计收料数量(基本)：FBASERECEIVEQTY 
-	 累计入库数量(基本)：FBASESTOCKINQTY 
-	 关联数量：FJOINQTY 
-	 基本单位关联数量：FBaseJoinQty 
-	 辅助属性：FAuxPropId 
-	 合同单号：FContractNo 
-	 需求跟踪号：FReqTraceNo 
-	 源单类型：FSrcBillTypeId 
-	 源单编号：FSrcBillNo 
-	 税组合：FTaxCombination 
-	 批号：FLot 
-	 交货上限：FDeliveryMaxQty 
-	 交货下限：FDeliveryMinQty 
-	 交货地点：FLocation 
-	 最晚交货日期：FDeliveryLastDate 
-	 最早交货日期：FDeliveryEarlyDate 
-	 交货上限(基本单位)：FBaseDeliveryMaxQty 
-	 交货下限(基本单位)：FBaseDeliveryMinQty 
-	 采购基本数量：FBaseUnitQty 
-	 当前库存：FInventoryQty 
-	 物料说明：FMaterialDesc 
-	 委外产品类型：FProductType 
-	 联副产品分录id：FCOPYENTRYID 
-	 产品行主键：FRowId 
-	 父产品行主键：FParentRowId 
-	 组别：FGroup 
-	 收料可退数量(基本单位)：FBASECHECKRETQTY 
-	 库存可退数量(基本单位)：FBASESTOCKRETQTY 
-	 收料可退数量：FCHECKRETQTY 
-	 库存可退数量：FSTOCKRETQTY 
-	 业务流程：FBFLowId 
-	 供应商物料编码：FSupMatId 
-	 供应商物料名称：FSupMatName 
-	 允许库存：FIsInventory 
-	 结算方式：FEntrySettleModeId 
-	 交货日期：FDeliveryDate 
-	 计划跟踪号：FMtoNo 
-	 是否赠品：FGiveAway 
-	 集中结算组织(6.0废弃)：FCentSettleOrgId 
-	 分散结算组织(6.0废弃)：FDispSettleOrgId 
-	 关联应付金额：FAPJoinAmount 
-	 费用项目：FChargeProjectID 
-	 收料部门：FReceiveDeptId 
-	 最高报价(6.1废弃)：FMaxPrice 
-	 最低报价(6.1废弃)：FMinPrice 
-	 是否可库存：FIsStock 
-	 消耗汇总数量：FConsumeSumQty 
-	 消耗汇总基本单位数量：FBaseConsumeSumQty 
-	 销售订单关联数量（采购基本）：FBaseSalJoinQty 
-	 销售订单关联数量（采购）：FSalJoinQty 
-	 供应商协同平台订单分录ID(6.1废弃)：FNetOrderEntryId 
-	 计价基本数量：FPriceBaseQty 
-	 定价单位：FSetPriceUnitID 
-	 销售单位：FSalUnitID 
-	 销售数量：FSalQty 
-	 销售基本数量：FSalBaseQty 
-	 库存单位：FStockUnitID  (必填项)
-	 库存单位数量：FStockQty 
-	 库存基本数量：FStockBaseQty 
-	 携带的主业务单位：FSRCBIZUNITID 
-	 采购基本分子：FPurBaseNum 
-	 库存基本分母：FStockBaseDen 
-	 库存关联数量(基本单位)：FSTOCKJOINBASEQTY 
-	 销售订单关联数量（库存基本）：FStockBaseSalJoinQty 
-	 关联应付数量（库存基本)：FStockBaseAPJoinQty 
-	 累计入库数量(库存基本)：FSTOCKBASESTOCKINQTY 
-	 分录价目表：FPriceListEntry 
-	 委外组织：FSubOrgId 
-	 配额生成：FIsQuota 
-	 需求来源：FDEMANDTYPE 
-	 需求单据编号：FDEMANDBILLNO 
-	 需求单据行号：FDEMANDBILLENTRYSEQ 
-	 需求单据分录内码：FDEMANDBILLENTRYID 
-	 产品类型：FRowType 
-	 父项产品：FPARENTMATID 
-	 父项BOM版本：FPARENTBOMID 
-	 单价折扣：FPriceDiscount 
-	 价目表分录id：FPRILSTENTRYID 
-	 零售条形码：FBarcode 
-	 收货门店：FBranchId 
-	 先收票数量（基本单位）：FBASEFINAPQTY 
-	 累计检验退料并扣款数量（基本）：FBASECHECKCUTPAYQTY 
-	 我方承担样本破坏基本数量：FSAMPLEDAMAGEBASEQTY 
-	 累计验收金额：FSUMACCALLAMOUNT 
-	 累计验收比例%：FSUMACCRATE 
-	 先收票数量（库存基本）：FSTOCKBASEFINAPQTY 
-	 尾差处理标识：FTailDiffFlag 
-	 价税合计（折前）：FAllAmountExceptDisCount 
-	 询价报价采纳分录id：FInqueryGetId 
-	 反写调整数量(采购基本)：FWBADUBASEPURQTY 
-	 反写调整数量(库存基本)：FWBADUBASESTOCKQTY 
-	 委外领料套数：FWWPickMtlQty 
-	 我方破坏样本数量：FMYDAMAGESAMPLEBASEQTY 
-	 委外订单编号：FSUBREQBILLNO 
-	 委外订单行号：FSUBREQBILLSEQ 
-	 委外订单分录内码：FSUBREQENTRYID 
-	 替代物料原编码：FRepOldMaterialNumber 
-	 是否替代料采购：FIsRepMaterial 
-	 采购入库单分录内码：FINSTOCKENTRYID 
-	 已执行价税合计：FOrderExecAllamount 
-	 已执行金额：FOrderExecAmount 
-	 反写调整价税合计：FWbAduExecAllamount 
-	 反写调整金额：FWbAduExecAmount 
-	 已关联下推价税合计：FOrderJoinAllamount 
-	 已关联下推金额：FOrderJoinAmount 
-	 仓库：FStockId 
-	 仓位：FStockLocId 
-	 牙博士：FF100001
-交货明细：FEntryDeliveryPlan 
-	 实体主键：FDetailId 
-	 已交货数量：FDeliCommitQty 
-	 剩余数量：FDeliRemainQty 
-	 数量：FPlanQty 
-	 交货地点：FELocationId 
-	 交货地址：FELocationAddress 
-	 数量（基本单位）：FBasePlanQty 
-	 已交货数量（基本单位）：FBaseDeliCommitQty 
-	 剩余数量（基本单位）：FBaseDeliRemainQty 
-	 计划单位：FPlanUnitID 
-	 计划基本单位：FPlanBaseUnitID 
-	 交货日期：FDeliveryDate_Plan 
-	 供应商发货日期：FSUPPLIERDELIVERYDATE 
-	 运输提前期：FTRLT 
-	 预计到货日期：FPREARRIVALDATE 
-	 确认交货数量：FConfirmDeliQty 
-	 确认交货日期：FConfirmDeliDate 
-	 确认意见：FConfirmInfo 
-	 交货地点：FELocation 
-税务明细：FTaxDetailSubEntity 
-	 实体主键：FDetailID 
-	 税率名称：FTaxRateId 
-	 税率%：FTaxRate 
-	 税额：FTaxAmount 
-	 计入成本比例%：FCostPercent 
-	 计入成本金额：FCostAmount 
-	 增值税：FVAT 
-	 卖方代扣代缴：FSellerWithholding 
-	 买方代扣代缴：FBuyerWithholding 
-付款计划：FIinstallment 
-	 实体主键：FENTRYID 
-	 应付日期：FYFDATE 
-	 应付金额：FYFAMOUNT 
-	 应付比例(%)：FYFRATIO 
-	 实际预付金额：FACTUALAMOUNT 
-	 是否预付：FISPREPAYMENT 
-	 预付单号：FRelBillNo 
-	 备注：FRemarks 
-	 预付比例%：FinsPayAdvanceRate 
-	 预付款：FInsPayAdvanceAmount 
-	 单次预付额度：FInsPrepaidAmount 
-	 付款申请关联金额：FAPPLYAMOUNT 
-	 付款关联金额：FPayJoinAmount 
-	 物料编码：FPayMaterialId 
-	 物料名称：FPayMaterialName 
-	 物料行号：FMATERIALSEQ 
-	 采购订单号：FPURCHASEORDERNO 
-	 订单明细行内码：FOrderEntryId 
-	 数量：FPayPlanQty 
-	 含税单价：FPayPlanPrice 
-	 计价单位：FPAYPLANPRICEUNITID 
-	 数量(基本单位)：FBasePayPlanQty 
-	 已申请关联数量：FAppliedQty 
-	 实际预付关联数量：FActualPayQty 
-	 计价基本单位：FBasePriceUnit 
-	 物料说明：FPayMaterialDesc 
-	 规格型号：FPayModel 
-	 辅助属性：FPayAuxPropId 
-	 费用项目：FPayChargeProjectID 
-付款计划子单据体：FOrderActualPaySubEntity 
-	 实体主键：FDetailID 
-	 付款单内码：FPAYBILLID 
-	 付款单分录内码：FPAYBILLENTITYID 
-	 采购订单内码：FPOORDERID 
-	 实付预付金额：FAmount 
-	 预分配金额：FPREAMOUNT 
-	 结算组织：FPPSettleOrgId 
-	 付款申请单号：FAPPLYBILLNO 
-	 预付单号：FPREPAYBillNo 
-	 付款申请关联金额：FPAPPLYAMOUNT 
-	 付款关联金额：FPPayJoinAmount 
-付款执行：FPOOrderPay 
-	 实体主键：FEntryId 
-	 累计付款申请金额：FALLPAYAPPLYAMOUNT 
-	 累计付款金额：FALLPAYAMOUNT 
-	 申请单未付款金额：FALLAPPYNOPAYAMOUNT 
-	 付款金额（关联）：FPAYRELATAMOUNT 
-	 付款单非关联核销金额：FPAYNOTRELATAMOUNT 
-	 应付单非关联核销金额：FAPNOTRELATAMOUNT 
-	 累计退款金额：FALLREFUNDAMOUNT 
-	 订单未付款金额：FALLNOPAYAMOUNT 
-付款执行明细：FPaymentEntry 
-	 实体主键：FEntryID 
-	 关联单据：FORMID 
-	 关联单据编号：FRELATBILLNO 
-	 申请付款金额：FPAYAPPLYAMOUNT 
-	 付款金额：FAMAmount 
-	 核销记录单据：FTYPE 
-	 退款金额：FREFUNDAMOUNT 
-	 业务日期：FPAYDATE 
-关联关系表：FPOOrderEntry_Link 
-	 实体主键：FLinkId 
-	 业务流程图：FPOOrderEntry_Link_FFlowId 
-	 推进路线：FPOOrderEntry_Link_FFlowLineId 
-	 转换规则：FPOOrderEntry_Link_FRuleId 
-	 源单表内码：FPOOrderEntry_Link_FSTableId 
-	 源单表：FPOOrderEntry_Link_FSTableName 
-	 源单内码：FPOOrderEntry_Link_FSBillId 
-	 源单分录内码：FPOOrderEntry_Link_FSId 
-	 原始携带量：FPOOrderEntry_Link_FBaseUnitQtyOld 
-	 修改携带量：FPOOrderEntry_Link_FBaseUnitQty 
-	 原始携带量：FPOOrderEntry_Link_FSalBaseQtyOld 
-	 修改携带量：FPOOrderEntry_Link_FSalBaseQty 
-	 原始携带量：FPOOrderEntry_Link_FStockBaseQtyOld 
-	 修改携带量：FPOOrderEntry_Link_FStockBaseQty 
-	 迁移图：FPOOrderEntry_Link_FLinkTrackerId 
-	 上游状态：FPOOrderEntry_Link_FLinkSState 
-	 数量FLink：FPOOrderEntry_Link_FLinkAmount 
-	 迁移图：FPOOrderEntry_Link_FLnkTrackerId 
-	 上游状态：FPOOrderEntry_Link_FLnkSState 
-	 数量FLnk：FPOOrderEntry_Link_FLnkAmount 
-	 迁移图：FPOOrderEntry_Link_FLnk1TrackerId 
-	 上游状态：FPOOrderEntry_Link_FLnk1SState 
-	 数量FLnk1：FPOOrderEntry_Link_FLnk1Amount 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+基本信息: FBillHead
+实体主键: FID
+单据编号: FBillNo
+单据状态: FDocumentStatus
+采购日期: FDate
+采购组织: FPurchaseOrgId
+供应商: FSupplierId
+采购组: FPurchaserGroupId
+采购部门: FPurchaseDeptId
+创建人: FCreatorId
+创建日期: FCreateDate
+最后修改人: FModifierId
+最后修改日期: FModifyDate
+审核人: FApproverId
+审核日期: FApproveDate
+作废人: FCancellerId
+作废日期: FCancelDate
+作废状态: FCancelStatus
+关闭状态: FCloseStatus
+采购员: FPurchaserId
+关闭人: FCloserId
+关闭日期: FCloseDate
+单据类型: FBillTypeID
+结算方: FSettleId
+收款方: FChargeId
+供货方: FProviderId
+变更人: FChangerId
+版本号: FVersionNo
+变更日期: FChangeDate
+变更原因: FChangeReason
+业务类型: FBusinessType
+供货方地址: FProviderAddress
+指定供应商: FAssignSupplierId
+对应组织: FCorrespondOrgId
+供货方联系人(旧): FProviderContact
+修改变更操作: FIsModificationOperator
+供应商协同平台订单编号(6.1废弃): FNetOrderBillNo
+供应商协同平台订单ID(6.1废弃): FNetOrderBillId
+确认状态: FConfirmStatus
+确认人: FConfirmerId
+确认日期: FConfirmDate
+供货方联系人: FProviderContactId
+职务: FProviderJob
+手机: FProviderPhone
+源单编号: FSourceBillNo
+变更状态: FChangeStatus
+验收方式: FACCTYPE
+释放采购申请: FRelReqStatus
+手工关闭: FMANUALCLOSE
+邮箱: FProviderEMail
+关闭原因: FCloseReason
+移动单据: FIsMobBill
+分销销售订单生成: FIsUseDrpSalePOPush
+生成直运出入库: FIsCreateStraightOutIN
+合同类型: FContractType
+项目: F_TJKT_Base_83g
+摘要: F_TJKT_ChangeReason_re5
+客户: F_TJKT_Base_apv
+合同号: F_PSVQ_Text_rco
+财务信息: FPOOrderFinance
+实体主键: FEntryId
+整单费用: FBillCost
+金额: FBillAmount
+价税合计: FBillAllAmount
+价目表: FPriceListId
+折扣表: FDiscountListId
+结算币别: FSettleCurrId
+税额: FBillTaxAmount
+定价时点: FPriceTimePoint
+本位币: FLocalCurrId
+金额(本位币): FBillAmount_LC
+税额(本位币): FBillTaxAmount_LC
+价税合计(本位币): FBillAllAmount_LC
+汇率类型: FExchangeTypeId
+汇率: FExchangeRate
+付款条件: FPayConditionId
+预付单号: FPayAdvanceBillId
+含税: FIsIncludedTax
+结算方式: FSettleModeId
+预付已核销金额: FPreMatchAmountFor
+集中结算(6.0废弃): FSEPSETTLE
+单次预付额度: FPAYADVANCEAMOUNT
+单次预付额度汇率: FSupToOderExchangeBusRate
+集中结算组织: FFOCUSSETTLEORGID
+价外税: FISPRICEEXCLUDETAX
+保证金比例%: FDepositRatio
+保证金: FDeposit
+关联保证金: FRelateDeposit
+申请关联保证金: FAPPLYRELATEDEPOSIT
+关联退款保证金: FRelateRefundDeposit
+整单折扣额: FAllDisCount
+超额比例%: FUPPERBELIEL
+订单条款: FPOOrderClause
+描述: FClauseDesc
+条款编码: FClauseId
+条款名称: FClauseName
+条款类型: FClauseType
+条款内容: FClauseContent
+明细信息: FPOOrderEntry
+物料编码: FMaterialId
+采购数量: FQty
+单价: FPrice
+折扣率%: FEntryDiscountRate
+税率%: FEntryTaxRate
+净价: FTaxNetPrice
+金额: FEntryAmount
+价税合计: FAllAmount
+折扣额: FEntryDiscount
+备注: FEntryNote
+累计收料数量: FReceiveQty
+累计入库数量: FStockInQty
+应付数量: FInvoiceQty
+应付金额: FInvoiceAmount
+累计付款金额(已废弃): FPayAmount
+价格系数: FPriceCoefficient
+计价数量: FPriceUnitQty
+需求部门: FRequireDeptId
+需求人: FRequireStaffId
+交货地点: FLocationId
+交货地址: FLocationAddress
+控制交货数量: FDeliveryControl
+交货提前天数: FDeliveryBeforeDays
+交货延迟天数: FDeliveryDelayDays
+控制交货时间: FTimeControl
+物料名称: FMaterialName
+规格型号: FModel
+物料类别: FMaterialType
+物料版本: FMaterialVersion
+业务冻结: FMRPFreezeStatus
+业务终止: FMRPTerminateStatus
+业务关闭: FMRPCloseStatus
+供应商批号: FSupplierLot
+剩余收料数量: FRemainReceiveQty
+剩余入库数量: FRemainStockINQty
+含税单价: FTaxPrice
+税额: FEntryTaxAmount
+冻结人: FFreezerId
+冻结日期: FFreezeDate
+终止人: FTerminaterId
+终止日期: FTerminateDate
+收料组织: FReceiveOrgId
+需求组织: FRequireOrgId
+行费用: FRowCost
+付款组织: FEntryPayOrgId
+结算组织: FEntrySettleOrgId
+加工商: FProcesser
+系统定价: FSysPrice
+价格上限: FUpPrice
+价格下限: FDownPrice
+整单折扣分摊: FBillDisApportion
+计划确认: FPlanConfirm
+BOM版本: FBomId
+累计退料数量: FMrbQty
+变更标志: FChangeFlag
+金额(本位币): FAmount_LC
+价税合计(本位币): FAllAmount_LC
+税额(本位币): FTaxAmount_LC
+关联应付数量(计价基本): FBaseAPJoinQty
+交货库存状态: FDeliveryStockStatus
+采购单位: FUnitId
+计价单位: FPriceUnitId
+基本单位: FBaseUnitId
+累计退料数量(基本): FBASEMRBQTY
+累计收料数量(基本): FBASERECEIVEQTY
+累计入库数量(基本): FBASESTOCKINQTY
+关联数量: FJOINQTY
+基本单位关联数量: FBaseJoinQty
+辅助属性: FAuxPropId
+合同单号: FContractNo
+需求跟踪号: FReqTraceNo
+源单类型: FSrcBillTypeId
+源单编号: FSrcBillNo
+税组合: FTaxCombination
+批号: FLot
+交货上限: FDeliveryMaxQty
+交货下限: FDeliveryMinQty
+交货地点: FLocation
+最晚交货日期: FDeliveryLastDate
+最早交货日期: FDeliveryEarlyDate
+交货上限(基本单位): FBaseDeliveryMaxQty
+交货下限(基本单位): FBaseDeliveryMinQty
+采购基本数量: FBaseUnitQty
+当前库存: FInventoryQty
+物料说明: FMaterialDesc
+委外产品类型: FProductType
+联副产品分录id: FCOPYENTRYID
+产品行主键: FRowId
+父产品行主键: FParentRowId
+组别: FGroup
+收料可退数量(基本单位): FBASECHECKRETQTY
+库存可退数量(基本单位): FBASESTOCKRETQTY
+收料可退数量: FCHECKRETQTY
+库存可退数量: FSTOCKRETQTY
+业务流程: FBFLowId
+供应商物料编码: FSupMatId
+供应商物料名称: FSupMatName
+允许库存: FIsInventory
+结算方式: FEntrySettleModeId
+交货日期: FDeliveryDate
+计划跟踪号: FMtoNo
+是否赠品: FGiveAway
+集中结算组织(6.0废弃): FCentSettleOrgId
+分散结算组织(6.0废弃): FDispSettleOrgId
+关联应付金额: FAPJoinAmount
+费用项目: FChargeProjectID
+收料部门: FReceiveDeptId
+最高报价(6.1废弃): FMaxPrice
+最低报价(6.1废弃): FMinPrice
+是否可库存: FIsStock
+消耗汇总数量: FConsumeSumQty
+消耗汇总基本单位数量: FBaseConsumeSumQty
+销售订单关联数量（采购基本）: FBaseSalJoinQty
+销售订单关联数量（采购）: FSalJoinQty
+供应商协同平台订单分录ID(6.1废弃): FNetOrderEntryId
+计价基本数量: FPriceBaseQty
+定价单位: FSetPriceUnitID
+销售单位: FSalUnitID
+销售数量: FSalQty
+销售基本数量: FSalBaseQty
+库存单位: FStockUnitID
+库存单位数量: FStockQty
+库存基本数量: FStockBaseQty
+携带的主业务单位: FSRCBIZUNITID
+采购基本分子: FPurBaseNum
+库存基本分母: FStockBaseDen
+库存关联数量(基本单位): FSTOCKJOINBASEQTY
+销售订单关联数量（库存基本）: FStockBaseSalJoinQty
+关联应付数量（库存基本): FStockBaseAPJoinQty
+累计入库数量(库存基本): FSTOCKBASESTOCKINQTY
+分录价目表: FPriceListEntry
+委外组织: FSubOrgId
+配额生成: FIsQuota
+需求来源: FDEMANDTYPE
+需求单据编号: FDEMANDBILLNO
+需求单据行号: FDEMANDBILLENTRYSEQ
+需求单据分录内码: FDEMANDBILLENTRYID
+产品类型: FRowType
+父项产品: FPARENTMATID
+父项BOM版本: FPARENTBOMID
+单价折扣: FPriceDiscount
+价目表分录id: FPRILSTENTRYID
+零售条形码: FBarcode
+收货门店: FBranchId
+先收票数量（基本单位）: FBASEFINAPQTY
+累计检验退料并扣款数量（基本）: FBASECHECKCUTPAYQTY
+我方承担样本破坏基本数量: FSAMPLEDAMAGEBASEQTY
+累计验收金额: FSUMACCALLAMOUNT
+累计验收比例%: FSUMACCRATE
+先收票数量（库存基本）: FSTOCKBASEFINAPQTY
+尾差处理标识: FTailDiffFlag
+价税合计（折前）: FAllAmountExceptDisCount
+询价报价采纳分录id: FInqueryGetId
+反写调整数量(采购基本): FWBADUBASEPURQTY
+反写调整数量(库存基本): FWBADUBASESTOCKQTY
+委外领料套数: FWWPickMtlQty
+我方破坏样本数量: FMYDAMAGESAMPLEBASEQTY
+委外订单编号: FSUBREQBILLNO
+委外订单行号: FSUBREQBILLSEQ
+委外订单分录内码: FSUBREQENTRYID
+替代物料原编码: FRepOldMaterialNumber
+是否替代料采购: FIsRepMaterial
+采购入库单分录内码: FINSTOCKENTRYID
+已执行价税合计: FOrderExecAllamount
+已执行金额: FOrderExecAmount
+反写调整价税合计: FWbAduExecAllamount
+反写调整金额: FWbAduExecAmount
+已关联下推价税合计: FOrderJoinAllamount
+已关联下推金额: FOrderJoinAmount
+仓库: FStockId
+仓位: FStockLocId
+牙博士: FF100001
+交货明细: FEntryDeliveryPlan
+实体主键: FDetailId
+已交货数量: FDeliCommitQty
+剩余数量: FDeliRemainQty
+数量: FPlanQty
+交货地点: FELocationId
+交货地址: FELocationAddress
+数量（基本单位）: FBasePlanQty
+已交货数量（基本单位）: FBaseDeliCommitQty
+剩余数量（基本单位）: FBaseDeliRemainQty
+计划单位: FPlanUnitID
+计划基本单位: FPlanBaseUnitID
+交货日期: FDeliveryDate_Plan
+供应商发货日期: FSUPPLIERDELIVERYDATE
+运输提前期: FTRLT
+预计到货日期: FPREARRIVALDATE
+确认交货数量: FConfirmDeliQty
+确认交货日期: FConfirmDeliDate
+确认意见: FConfirmInfo
+交货地点: FELocation
+税务明细: FTaxDetailSubEntity
+税率名称: FTaxRateId
+税率%: FTaxRate
+税额: FTaxAmount
+计入成本比例%: FCostPercent
+计入成本金额: FCostAmount
+增值税: FVAT
+卖方代扣代缴: FSellerWithholding
+买方代扣代缴: FBuyerWithholding
+付款计划: FIinstallment
+应付日期: FYFDATE
+应付金额: FYFAMOUNT
+应付比例(%): FYFRATIO
+实际预付金额: FACTUALAMOUNT
+是否预付: FISPREPAYMENT
+预付单号: FRelBillNo
+备注: FRemarks
+预付比例%: FinsPayAdvanceRate
+预付款: FInsPayAdvanceAmount
+单次预付额度: FInsPrepaidAmount
+付款申请关联金额: FAPPLYAMOUNT
+付款关联金额: FPayJoinAmount
+物料编码: FPayMaterialId
+物料名称: FPayMaterialName
+物料行号: FMATERIALSEQ
+采购订单号: FPURCHASEORDERNO
+订单明细行内码: FOrderEntryId
+数量: FPayPlanQty
+含税单价: FPayPlanPrice
+计价单位: FPAYPLANPRICEUNITID
+数量(基本单位): FBasePayPlanQty
+已申请关联数量: FAppliedQty
+实际预付关联数量: FActualPayQty
+计价基本单位: FBasePriceUnit
+物料说明: FPayMaterialDesc
+规格型号: FPayModel
+辅助属性: FPayAuxPropId
+费用项目: FPayChargeProjectID
+付款计划子单据体: FOrderActualPaySubEntity
+付款单内码: FPAYBILLID
+付款单分录内码: FPAYBILLENTITYID
+采购订单内码: FPOORDERID
+实付预付金额: FAmount
+预分配金额: FPREAMOUNT
+结算组织: FPPSettleOrgId
+付款申请单号: FAPPLYBILLNO
+预付单号: FPREPAYBillNo
+付款申请关联金额: FPAPPLYAMOUNT
+付款关联金额: FPPayJoinAmount
+付款执行: FPOOrderPay
+累计付款申请金额: FALLPAYAPPLYAMOUNT
+累计付款金额: FALLPAYAMOUNT
+申请单未付款金额: FALLAPPYNOPAYAMOUNT
+付款金额（关联）: FPAYRELATAMOUNT
+付款单非关联核销金额: FPAYNOTRELATAMOUNT
+应付单非关联核销金额: FAPNOTRELATAMOUNT
+累计退款金额: FALLREFUNDAMOUNT
+订单未付款金额: FALLNOPAYAMOUNT
+付款执行明细: FPaymentEntry
+关联单据: FORMID
+关联单据编号: FRELATBILLNO
+申请付款金额: FPAYAPPLYAMOUNT
+付款金额: FAMAmount
+核销记录单据: FTYPE
+退款金额: FREFUNDAMOUNT
+业务日期: FPAYDATE
+关联关系表: FPOOrderEntry_Link
+实体主键: FLinkId
+业务流程图: FPOOrderEntry_Link_FFlowId
+推进路线: FPOOrderEntry_Link_FFlowLineId
+转换规则: FPOOrderEntry_Link_FRuleId
+源单表内码: FPOOrderEntry_Link_FSTableId
+源单表: FPOOrderEntry_Link_FSTableName
+源单内码: FPOOrderEntry_Link_FSBillId
+源单分录内码: FPOOrderEntry_Link_FSId
+原始携带量: FPOOrderEntry_Link_FBaseUnitQtyOld
+修改携带量: FPOOrderEntry_Link_FBaseUnitQty
+原始携带量: FPOOrderEntry_Link_FSalBaseQtyOld
+修改携带量: FPOOrderEntry_Link_FSalBaseQty
+原始携带量: FPOOrderEntry_Link_FStockBaseQtyOld
+修改携带量: FPOOrderEntry_Link_FStockBaseQty
+迁移图: FPOOrderEntry_Link_FLinkTrackerId
+上游状态: FPOOrderEntry_Link_FLinkSState
+数量FLink: FPOOrderEntry_Link_FLinkAmount
+迁移图: FPOOrderEntry_Link_FLnkTrackerId
+上游状态: FPOOrderEntry_Link_FLnkSState
+数量FLnk: FPOOrderEntry_Link_FLnkAmount
+迁移图: FPOOrderEntry_Link_FLnk1TrackerId
+上游状态: FPOOrderEntry_Link_FLnk1SState
+数量FLnk1: FPOOrderEntry_Link_FLnk1Amount

@@ -1,665 +1,269 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.NeedUpDateFields：需要更新的字段，数组类型，格式：[key1,key2,...] （非必录）注（更新字段时Model数据包中必须设置内码，若更新单据体字段还需设置分录内码）
-     2.2.NeedReturnFields：需返回结果的字段集合，数组类型，格式：[key,entitykey.key,...]（非必录） 注（返回单据体字段格式：entitykey.key）
-     2.3.IsDeleteEntry：是否删除已存在的分录，布尔类型，默认true（非必录）
-     2.4.SubSystemId：表单所在的子系统内码，字符串类型（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认false（非必录）
-     2.6.IsEntryBatchFill：是否批量填充分录，默认true（非必录）
-     2.7.ValidateFlag：是否验证数据合法性标志，布尔类型，默认true（非必录）注（设为false时不对数据合法性进行校验）
-     2.8.NumberSearch：是否用编码搜索基础资料，布尔类型，默认true（非必录）
-     2.9.IsAutoAdjustField：是否自动调整JSON字段顺序，布尔类型，默认false（非必录）
-     2.10.InterationFlags：交互标志集合，字符串类型，分号分隔，格式："flag1;flag2;..."（非必录） 例如（允许负库存标识：STK_InvCheckResult）
-     2.11.IgnoreInterationFlag：是否允许忽略交互，布尔类型，默认true（非必录）
-     2.12.IsControlPrecision：是否控制精度，为true时对金额、单价和数量字段进行精度验证，默认false（非必录）
-     2.13.ValidateRepeatJson：校验Json数据包是否重复传入，一旦重复传入，接口调用失败，传true则启用校验，传false则不校验（非必录）
-     2.14.Model：表单数据包，JSON类型（必录）
-备注:
-1.示例Model数据包中字段顺序不建议改变，否则可能会有相互影响，如果出现字段值被覆盖或丢失，则可以尝试把字段顺序向后调整一下。
-2.示例Model数据包默认包含允许引入的字段，实际按需构建既可。
-3.如需创建关联关系，可参考https://club.kingdee.com/forum.php?mod=viewthread&tid=1394265 。
-4.对于重要API接口，应设置幂等性校验、设置对应候选键（唯一性字段）的唯一索引等防重调用机制，以防并发导致数据重复。
-
-二、返回结果：
-{"Result":{"ResponseStatus":{"ErrorCode":"","IsSuccess":"false","Errors":[{"FieldName":"","Message":"","DIndex":0}],"SuccessEntitys":[{"Id":"","Number":"","DIndex":0}],"SuccessMessages":[{"FieldName":"","Message":"","DIndex":0}],"MsgCode":""},"Id":"","Number":"","NeedReturnData":[{}]}}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/k3cloud/");
-client.Save("ER_ExpReimbursement_Travel","{"NeedUpDateFields":[],"NeedReturnFields":[],"IsDeleteEntry":"false","SubSystemId":"","IsVerifyBaseDataField":"false","IsEntryBatchFill":"true","ValidateFlag":"true","NumberSearch":"true","IsAutoAdjustField":"true","InterationFlags":"","IgnoreInterationFlag":"","IsControlPrecision":"false","ValidateRepeatJson":"true","Model":{"FID":0,"FBillNo":"","FDate":"1900-01-01","FCurrencyID":{"FNUMBER":""},"FOrgID":{"FNumber":""},"FCausa":"","FProposerID":{"FSTAFFNUMBER":""},"FRequestDeptID":{"FNUMBER":""},"FContactPhoneNo":"","FExpenseOrgId":{"FNumber":""},"FBillTypeID":{"FNUMBER":""},"FExpenseDeptID":{"FNUMBER":""},"FCONTACTUNITTYPE":"","FOUTCONTACTUNITTYPE":"","FCONTACTUNIT":{"FNumber":""},"FOUTCONTACTUNIT":{"FNumber":""},"FPayOrgId":{"FNumber":""},"FPaySettlleTypeID":{"FNUMBER":""},"FBankBranchT":"","FRefundBankAccount":{"FNUMBER":""},"FBankAccountNameT":"","FBankAccountT":"","FBankTypeRecT":{"FNUMBER":""},"FProvinceT":{"FNAME":""},"FCityT":{"FNAME":""},"FDistrictT":{"FNUMBER":""},"FExchangeRate":0,"FExchangeTypeID":{"FNUMBER":""},"FLocCurrencyID":{"FNUMBER":""},"FPeerPerson":"","FCombinedPay":"false","FSplitEntry":"false","FLocExpAmountSum":0,"FLocReqAmountSum":0,"FExpAmountSum":0,"FReqAmountSum":0,"FCreatorId":{"FUserID":""},"FCreateDate":"1900-01-01","FModifierId":{"FUserID":""},"FModifyDate":"1900-01-01","FAPPROVERID":{"FUserID":""},"FAPPROVEDATE":"1900-01-01","FRequestType":"","FReqReimbAmountSum":0,"FReqPayReFoundAmountSum":0,"FBankAddress":"","FBANKCNAPS":"","FRealPay":"false","FScanPoint":{"FNUMBER":""},"FBankDetail":{"FNUMBER":""},"FCountry":"","FNProvince":"","FNCity":"","FNDistrict":"","FMultiPayee":"false","FillByBeimAmount":"false","FIsNegtiv":"false","FReceivedInvCode":"","FOverState":"","FBringAccount":"","FCCURRENCYID":{"FNUMBER":""},"FAvailableLoanAmount":0,"FUseReimStd":"false","FSwiftCode":"","FIntegratePaymentAmt":0,"F_TJKT_Amount_83g":0,"F_PSVQ_CheckBox_qtr":"false","FEntity":[{"FEntryID":0,"FSourceBillType":"","FSourceBillNo":"","FPAYPERIOD":0,"FPAYDATE":"1900-01-01","FTravelStartDate":"1900-01-01","FExpID":{"FNUMBER":""},"FTravelEndDate":"1900-01-01","FTravelStartSite":"","F_TJKT_Base_83g":{"FNUMBER":""},"FTravelEndSite":"","FDays":0,"FOriginalCurrencyId":{"FNUMBER":""},"FOriginalExRate":0,"FTravelType":{"FNUMBER":""},"FTravelAmount":0,"FTravelAmountFor":0,"FCivilAviationFund":0,"FIsRealName":"","FOriginalAmount":0,"FFlyAmount":0,"FFlyAmountFor":0,"FCityTrafficFee":0,"FCityTrafficFeeFor":0,"FOtherTraAmount":0,"FOtherTraAmountFor":0,"FLodgingFee":0,"FLodgingFeeFor":0,"FTravelSubsidy":0,"FTravelSubsidyFor":0,"FOtherExpense":0,"FOtherExpenseFor":0,"FInvoiceType":"","FTaxRate":0,"FTaxAmt":0,"FExpenseAmount":0,"FProductID":{"FNUMBER":""},"FExpenseDeptEntryID":{"FNUMBER":""},"FRequestAmount":0,"FExpSubmitAmount":0,"FReqSubmitAmount":0,"FTaxSubmitAmt":0,"FLOCTAXAMOUNT":0,"FLOCNOTAXAMOUNT":0,"FLocReqSubmitAmount":0,"FLocExpSubmitAmount":0,"FInvNumber":"","FRecInvBillNo":"","FInvOpenDate":"","FBankType":{"FNUMBER":""},"FPushRecAmount":0,"FSettlleTypeID":{"FNUMBER":""},"F_TJKT_Text_qtr":"","FRELRQAMOUNT":0,"FProvince":{"FNUMBER":""},"FCity":{"FNUMBER":""},"FDistrict":{"FNUMBER":""},"FOnlineBank":"false","FBankAccountName":"","FBankBranch":"","FBankAccount":"","FRemark":"","FTravelSeq":0,"FDepartureID":{"FNUMBER":""},"FArrivalID":{"FNUMBER":""},"FtravelAreaID":{"FNUMBER":""},"FAccommodationAmount":0,"FSubsidiesAmount":0,"FSubsidyDay":0,"FSTDTYPES":"","FTravelerID":{"FSTAFFNUMBER":""},"FISPEAKMON":"false","FComputeDay":0,"FOTHERSTDAMT":0}],"FEInvoiceEntity":[{"FEntryID":0,"FTaxNumber":"","FCompanyName":"","FTelephone":"","FSwiftNumber":"","FOrderNo":"","FInvoiceNumber":"","FInvoiceCode":"","FInvAmount":0,"FInvCreateDate":"1900-01-01","FInvoiceRemark":"","FRandomCode":"","FClientId":"","FClientSecret":"","FStatus":""}],"FRecInvInfo":[{"FEntryID":0,"FRecInv":{"FBILLNO":""},"FIVSerialNo":"","FISFROMSRCBILL":"false"}],"FMultiPayeeEntity":[{"FEntryID":0,"FSettlleType":{"FNUMBER":""},"FRECTUNIT":{"FNumber":""},"FPayee":"","FPayeeAmount":0,"FBankName":"","FBankNum":"","FBankOutlets":{"FNUMBER":""},"FPayeeRemark":""}],"FSrcEntity":[{"FEntryID":0,"FSrcBillNo":"","FSrcStaffID":{"FSTAFFNUMBER":""},"FTurnoverAmount":0,"FSrcWriteOffAmount":0,"FSrcFid":0,"FSrcEntityId":0,"FSrcSeq":0,"FSrcFormId":""}],"FReimbAndRecInvInfo":[{"FENTRYID":0,"FReimbLinkRecInvCode":"","FRecInvoiceBillNo":"","FRecInvFid":0,"FRecInvEntryId":0,"FInvAllAmt":0,"FInvAmt":0,"FInvTaxAmt":0,"FInsurancePremium":0}],"FScheduleEntity":[{"FEntryID":0,"FTravelStartFK":{"FNUMBER":""},"FTravelEndFK":{"FNUMBER":""},"FTravelAreaIDT":{"FNUMBER":""},"FHotelSum":0,"FAccommodationAmountT":0,"FSubsidySum":0,"FSubsidiesAmountT":0,"FTravelerIDT":{"FSTAFFNUMBER":""},"FISPEAKMONT":"false"}]}}");
-
-四、JSON格式数据：
-{
-    "NeedUpDateFields": [],
-    "NeedReturnFields": [],
-    "IsDeleteEntry": "false",
-    "SubSystemId": "",
-    "IsVerifyBaseDataField": "false",
-    "IsEntryBatchFill": "true",
-    "ValidateFlag": "true",
-    "NumberSearch": "true",
-    "IsAutoAdjustField": "true",
-    "InterationFlags": "",
-    "IgnoreInterationFlag": "",
-    "IsControlPrecision": "false",
-    "ValidateRepeatJson": "true",
-    "Model": {
-        "FID": 0,
-        "FBillNo": "",
-        "FDate": "1900-01-01",
-        "FCurrencyID": {
-            "FNUMBER": ""
-        },
-        "FOrgID": {
-            "FNumber": ""
-        },
-        "FCausa": "",
-        "FProposerID": {
-            "FSTAFFNUMBER": ""
-        },
-        "FRequestDeptID": {
-            "FNUMBER": ""
-        },
-        "FContactPhoneNo": "",
-        "FExpenseOrgId": {
-            "FNumber": ""
-        },
-        "FBillTypeID": {
-            "FNUMBER": ""
-        },
-        "FExpenseDeptID": {
-            "FNUMBER": ""
-        },
-        "FCONTACTUNITTYPE": "",
-        "FOUTCONTACTUNITTYPE": "",
-        "FCONTACTUNIT": {
-            "FNumber": ""
-        },
-        "FOUTCONTACTUNIT": {
-            "FNumber": ""
-        },
-        "FPayOrgId": {
-            "FNumber": ""
-        },
-        "FPaySettlleTypeID": {
-            "FNUMBER": ""
-        },
-        "FBankBranchT": "",
-        "FRefundBankAccount": {
-            "FNUMBER": ""
-        },
-        "FBankAccountNameT": "",
-        "FBankAccountT": "",
-        "FBankTypeRecT": {
-            "FNUMBER": ""
-        },
-        "FProvinceT": {
-            "FNAME": ""
-        },
-        "FCityT": {
-            "FNAME": ""
-        },
-        "FDistrictT": {
-            "FNUMBER": ""
-        },
-        "FExchangeRate": 0,
-        "FExchangeTypeID": {
-            "FNUMBER": ""
-        },
-        "FLocCurrencyID": {
-            "FNUMBER": ""
-        },
-        "FPeerPerson": "",
-        "FCombinedPay": "false",
-        "FSplitEntry": "false",
-        "FLocExpAmountSum": 0,
-        "FLocReqAmountSum": 0,
-        "FExpAmountSum": 0,
-        "FReqAmountSum": 0,
-        "FCreatorId": {
-            "FUserID": ""
-        },
-        "FCreateDate": "1900-01-01",
-        "FModifierId": {
-            "FUserID": ""
-        },
-        "FModifyDate": "1900-01-01",
-        "FAPPROVERID": {
-            "FUserID": ""
-        },
-        "FAPPROVEDATE": "1900-01-01",
-        "FRequestType": "",
-        "FReqReimbAmountSum": 0,
-        "FReqPayReFoundAmountSum": 0,
-        "FBankAddress": "",
-        "FBANKCNAPS": "",
-        "FRealPay": "false",
-        "FScanPoint": {
-            "FNUMBER": ""
-        },
-        "FBankDetail": {
-            "FNUMBER": ""
-        },
-        "FCountry": "",
-        "FNProvince": "",
-        "FNCity": "",
-        "FNDistrict": "",
-        "FMultiPayee": "false",
-        "FillByBeimAmount": "false",
-        "FIsNegtiv": "false",
-        "FReceivedInvCode": "",
-        "FOverState": "",
-        "FBringAccount": "",
-        "FCCURRENCYID": {
-            "FNUMBER": ""
-        },
-        "FAvailableLoanAmount": 0,
-        "FUseReimStd": "false",
-        "FSwiftCode": "",
-        "FIntegratePaymentAmt": 0,
-        "F_TJKT_Amount_83g": 0,
-        "F_PSVQ_CheckBox_qtr": "false",
-        "FEntity": [
-            {
-                "FEntryID": 0,
-                "FSourceBillType": "",
-                "FSourceBillNo": "",
-                "FPAYPERIOD": 0,
-                "FPAYDATE": "1900-01-01",
-                "FTravelStartDate": "1900-01-01",
-                "FExpID": {
-                    "FNUMBER": ""
-                },
-                "FTravelEndDate": "1900-01-01",
-                "FTravelStartSite": "",
-                "F_TJKT_Base_83g": {
-                    "FNUMBER": ""
-                },
-                "FTravelEndSite": "",
-                "FDays": 0,
-                "FOriginalCurrencyId": {
-                    "FNUMBER": ""
-                },
-                "FOriginalExRate": 0,
-                "FTravelType": {
-                    "FNUMBER": ""
-                },
-                "FTravelAmount": 0,
-                "FTravelAmountFor": 0,
-                "FCivilAviationFund": 0,
-                "FIsRealName": "",
-                "FOriginalAmount": 0,
-                "FFlyAmount": 0,
-                "FFlyAmountFor": 0,
-                "FCityTrafficFee": 0,
-                "FCityTrafficFeeFor": 0,
-                "FOtherTraAmount": 0,
-                "FOtherTraAmountFor": 0,
-                "FLodgingFee": 0,
-                "FLodgingFeeFor": 0,
-                "FTravelSubsidy": 0,
-                "FTravelSubsidyFor": 0,
-                "FOtherExpense": 0,
-                "FOtherExpenseFor": 0,
-                "FInvoiceType": "",
-                "FTaxRate": 0,
-                "FTaxAmt": 0,
-                "FExpenseAmount": 0,
-                "FProductID": {
-                    "FNUMBER": ""
-                },
-                "FExpenseDeptEntryID": {
-                    "FNUMBER": ""
-                },
-                "FRequestAmount": 0,
-                "FExpSubmitAmount": 0,
-                "FReqSubmitAmount": 0,
-                "FTaxSubmitAmt": 0,
-                "FLOCTAXAMOUNT": 0,
-                "FLOCNOTAXAMOUNT": 0,
-                "FLocReqSubmitAmount": 0,
-                "FLocExpSubmitAmount": 0,
-                "FInvNumber": "",
-                "FRecInvBillNo": "",
-                "FInvOpenDate": "",
-                "FBankType": {
-                    "FNUMBER": ""
-                },
-                "FPushRecAmount": 0,
-                "FSettlleTypeID": {
-                    "FNUMBER": ""
-                },
-                "F_TJKT_Text_qtr": "",
-                "FRELRQAMOUNT": 0,
-                "FProvince": {
-                    "FNUMBER": ""
-                },
-                "FCity": {
-                    "FNUMBER": ""
-                },
-                "FDistrict": {
-                    "FNUMBER": ""
-                },
-                "FOnlineBank": "false",
-                "FBankAccountName": "",
-                "FBankBranch": "",
-                "FBankAccount": "",
-                "FRemark": "",
-                "FTravelSeq": 0,
-                "FDepartureID": {
-                    "FNUMBER": ""
-                },
-                "FArrivalID": {
-                    "FNUMBER": ""
-                },
-                "FtravelAreaID": {
-                    "FNUMBER": ""
-                },
-                "FAccommodationAmount": 0,
-                "FSubsidiesAmount": 0,
-                "FSubsidyDay": 0,
-                "FSTDTYPES": "",
-                "FTravelerID": {
-                    "FSTAFFNUMBER": ""
-                },
-                "FISPEAKMON": "false",
-                "FComputeDay": 0,
-                "FOTHERSTDAMT": 0
-            }
-        ],
-        "FEInvoiceEntity": [
-            {
-                "FEntryID": 0,
-                "FTaxNumber": "",
-                "FCompanyName": "",
-                "FTelephone": "",
-                "FSwiftNumber": "",
-                "FOrderNo": "",
-                "FInvoiceNumber": "",
-                "FInvoiceCode": "",
-                "FInvAmount": 0,
-                "FInvCreateDate": "1900-01-01",
-                "FInvoiceRemark": "",
-                "FRandomCode": "",
-                "FClientId": "",
-                "FClientSecret": "",
-                "FStatus": ""
-            }
-        ],
-        "FRecInvInfo": [
-            {
-                "FEntryID": 0,
-                "FRecInv": {
-                    "FBILLNO": ""
-                },
-                "FIVSerialNo": "",
-                "FISFROMSRCBILL": "false"
-            }
-        ],
-        "FMultiPayeeEntity": [
-            {
-                "FEntryID": 0,
-                "FSettlleType": {
-                    "FNUMBER": ""
-                },
-                "FRECTUNIT": {
-                    "FNumber": ""
-                },
-                "FPayee": "",
-                "FPayeeAmount": 0,
-                "FBankName": "",
-                "FBankNum": "",
-                "FBankOutlets": {
-                    "FNUMBER": ""
-                },
-                "FPayeeRemark": ""
-            }
-        ],
-        "FSrcEntity": [
-            {
-                "FEntryID": 0,
-                "FSrcBillNo": "",
-                "FSrcStaffID": {
-                    "FSTAFFNUMBER": ""
-                },
-                "FTurnoverAmount": 0,
-                "FSrcWriteOffAmount": 0,
-                "FSrcFid": 0,
-                "FSrcEntityId": 0,
-                "FSrcSeq": 0,
-                "FSrcFormId": ""
-            }
-        ],
-        "FReimbAndRecInvInfo": [
-            {
-                "FENTRYID": 0,
-                "FReimbLinkRecInvCode": "",
-                "FRecInvoiceBillNo": "",
-                "FRecInvFid": 0,
-                "FRecInvEntryId": 0,
-                "FInvAllAmt": 0,
-                "FInvAmt": 0,
-                "FInvTaxAmt": 0,
-                "FInsurancePremium": 0
-            }
-        ],
-        "FScheduleEntity": [
-            {
-                "FEntryID": 0,
-                "FTravelStartFK": {
-                    "FNUMBER": ""
-                },
-                "FTravelEndFK": {
-                    "FNUMBER": ""
-                },
-                "FTravelAreaIDT": {
-                    "FNUMBER": ""
-                },
-                "FHotelSum": 0,
-                "FAccommodationAmountT": 0,
-                "FSubsidySum": 0,
-                "FSubsidiesAmountT": 0,
-                "FTravelerIDT": {
-                    "FSTAFFNUMBER": ""
-                },
-                "FISPEAKMONT": "false"
-            }
-        ]
-    }
-}
-
-五、字段说明：
-单据头：FBillHead 
-	 实体主键：FID 
-	 单据编号：FBillNo 
-	 单据状态：FDocumentStatus 
-	 申请人：FProposerID  (必填项)
-	 申请部门：FRequestDeptID  (必填项)
-	 费用承担部门：FExpenseDeptID  (必填项)
-	 汇率：FExchangeRate 
-	 币别：FCurrencyID  (必填项)
-	 汇率类型：FExchangeTypeID  (必填项)
-	 创建人：FCreatorId 
-	 创建日期：FCreateDate 
-	 修改人：FModifierId 
-	 修改日期：FModifyDate 
-	 审核人：FAPPROVERID 
-	 审核日期：FAPPROVEDATE 
-	 申请组织：FOrgID  (必填项)
-	 申请日期：FDate  (必填项)
-	 联系电话：FContactPhoneNo 
-	 账户名称：FBankAccountNameT 
-	 银行账号：FBankAccountT 
-	 费用承担组织：FExpenseOrgId  (必填项)
-	 作废人：FCancellerId 
-	 作废日期：FCancelDate 
-	 作废状态：FCancelStatus 
-	 本位币：FLocCurrencyID  (必填项)
-	 付款组织：FPayOrgId 
-	 往来单位类型：FCONTACTUNITTYPE  (必填项)
-	 往来单位：FCONTACTUNIT  (必填项)
-	 收款银行（作废）：FBankTypeRecT 
-	 省（作废）：FProvinceT 
-	 城市（作废）：FCityT 
-	 地区（作废）：FDistrictT 
-	 申请付款：FPayBox 
-	 申请退款：FrefundBox 
-	 报销金额本位币：FLocExpAmountSum 
-	 退/付款金额本位币：FLocReqAmountSum 
-	 单据类型：FBillTypeID  (必填项)
-	 开户银行：FBankBranchT 
-	 退款/付款：FRequestType 
-	 是否合并付款：FCombinedPay 
-	 核定报销金额汇总：FExpAmountSum 
-	 核定退/付款金额汇总：FReqAmountSum 
-	 通过网上银行支付：FOnlineBankShow 
-	 银行账号：FRefundBankAccount 
-	 账户名称：FRefundBankAccountName 
-	 开户银行：FRefundBankBranch 
-	 下游其他应付单编码：FOtherPayBillNumber 
-	 事由：FCausa  (必填项)
-	 申请报销金额汇总：FReqReimbAmountSum 
-	 申请退/付款金额汇总：FReqPayReFoundAmountSum 
-	 拆分行：FSplitEntry 
-	 费用外部承担：FIsCostOfOutORG 
-	 外部往来单位类型：FOUTCONTACTUNITTYPE 
-	 外部往来单位：FOUTCONTACTUNIT 
-	 结算方式：FPaySettlleTypeID 
-	 开户行地址：FBankAddress 
-	 联行号：FBANKCNAPS 
-	 扫描点：FScanPoint 
-	 实报实付：FRealPay 
-	 银行网点：FBankDetail 
-	 国别：FCountry 
-	 省：FNProvince 
-	 城市：FNCity 
-	 地区：FNDistrict 
-	 业务类型：FBUSINESSTYPE 
-	 多收款人：FMultiPayee 
-	 创建来源：FSourceBillKey 
-	 按报销金额填写：FillByBeimAmount 
-	 负数报销单：FIsNegtiv 
-	 收票编码：FReceivedInvCode 
-	 银行账号携带：FBringAccount 
-	 可用借款余额：FAvailableLoanAmount 
-	 SwiftCode：FSwiftCode 
-	 集成核定付款金额：FIntegratePaymentAmt 
-	 费用申请单总金额：F_TJKT_Amount_83g 
-	 是否借款：F_PSVQ_CheckBox_qtr 
-	 同行人员：FPeerPerson 
-	 超标说明：FOverState 
-	 本位币(费控)：FCCURRENCYID 
-	 使用差旅标准：FUseReimStd 
-报销明细：FEntity 
-	 实体主键：FEntryID 
-	 费用项目：FExpID  (必填项)
-	 发票类型：FInvoiceType  (必填项)
-	 申请报销金额：FExpenseAmount 
-	 税率%：FTaxRate 
-	 税额：FTaxAmt 
-	 费用金额(不含税）：FTaxSubmitAmt 
-	 核定报销金额：FExpSubmitAmount 
-	 申请退/付款金额：FRequestAmount 
-	 核定退/付款金额：FReqSubmitAmount 
-	 费用承担产品：FProductID 
-	 结算方式：FSettlleTypeID 
-	 通过网上银行支付：FOnlineBank 
-	 收款银行：FBankType 
-	 省：FProvince 
-	 城市：FCity 
-	 地区：FDistrict 
-	 账户名称：FBankAccountName 
-	 开户银行：FBankBranch 
-	 银行账号：FBankAccount 
-	 核定报销金额本位币：FLocExpSubmitAmount 
-	 核定金额本位币：FLocReqSubmitAmount 
-	 冲借款金额：FBorrowAmount 
-	 已付款金额：FPayedAmount 
-	 已退款金额：FRefundedAmount 
-	 冲销金额：FOffsetAmount 
-	 已核销金额：FWRITTENOFFAMOUNT 
-	 核销状态：FWRITTENOFFSTATUS 
-	 已下推转移金额：FPushTFSAMOUNT 
-	 已下推付款/退款金额：FPushPayAmount 
-	 源单类型：FSourceBillType 
-	 源单编号：FSourceBillNo 
-	 源单可冲销金额：FSRCBORROWAMOUNT 
-	 是否来源于借款：FIsFromBorrow 
-	 本次冲销源单金额：FSrcOffSetAmount 
-	 源单分录ID：FSosurceRowID 
-	 不含税金额本位币：FLOCNOTAXAMOUNT 
-	 税额本位币：FLOCTAXAMOUNT 
-	 备注：FRemark 
-	 核销关联控制：FWRITTENOFFAMOUNT_C 
-	 已转移金额：FTransferedAMOUNT 
-	 报销未付款金额：FReimbNotPayAmount 
-	 费用承担部门：FExpenseDeptEntryID  (必填项)
-	 已下推应收金额：FPushRecAmount 
-	 关联费用申请金额：FRELRQAMOUNT 
-	 已生成发票：FISGENINV 
-	 源单金额：FSRCBILLAMT 
-	 匹配核销金额：FAUTOMATCHAMOUNT 
-	 原币别：FOriginalCurrencyId 
-	 原金额：FOriginalAmount 
-	 付款汇率：FOriginalExRate 
-	 收票单号：FRecInvBillNo 
-	 付款期：FPAYPERIOD 
-	 计划付款日期：FPAYDATE 
-	 已下推负数报销金额：FNegtiAmt 
-	 红蓝单互冲金额：FNegtiMatchAmt 
-	 明细与发票联动处理标识：FReimbLinkInvCode 
-	 发票号码：FInvNumber 
-	 开票日期：FInvOpenDate 
-	 项目：F_TJKT_Base_83g 
-	 特殊备注：F_TJKT_Text_qtr 
-	 开始日期：FTravelStartDate  (必填项)
-	 结束日期：FTravelEndDate  (必填项)
-	 出发地：FTravelStartSite 
-	 目的地：FTravelEndSite 
-	 市内交通费：FCityTrafficFee 
-	 住宿费：FLodgingFee 
-	 天数：FDays 
-	 机票：FFlyAmount 
-	 其他长途交通费：FOtherTraAmount 
-	 出差补助：FTravelSubsidy 
-	 其他费用：FOtherExpense 
-	 机票（原金额）：FFlyAmountFor 
-	 市内交通费（原金额）：FCityTrafficFeeFor 
-	 其他长途交通费（原金额）：FOtherTraAmountFor 
-	 住宿费（原金额）：FLodgingFeeFor 
-	 出差补助（原金额）：FTravelSubsidyFor 
-	 其他费用（原金额）：FOtherExpenseFor 
-	 差旅费类型：FTravelType 
-	 差旅费金额：FTravelAmount 
-	 是否实名：FIsRealName 
-	 抵扣类型：FDeductionType 
-	 关联行程：FTravelSeq 
-	 民航基金及保险：FCivilAviationFund 
-	 差旅费金额（原金额）：FTravelAmountFor 
-	 出发地（费控）：FDepartureID 
-	 目的地（费控）：FArrivalID 
-	 出差地域：FtravelAreaID 
-	 住宿标准：FAccommodationAmount 
-	 补助标准：FSubsidiesAmount 
-	 住宿补助天数：FSubsidyDay 
-	 标准类型：FSTDTYPES 
-	 出差人：FTravelerID 
-	 旺季：FISPEAKMON 
-	 去重天数：FComputeDay 
-	 其他标准：FOTHERSTDAMT 
-电子发票：FEInvoiceEntity 
-	 实体主键：FEntryID 
-	 纳税人识别号：FTaxNumber 
-	 购货方名称：FCompanyName 
-	 手机号码：FTelephone 
-	 开票唯一流水号：FSwiftNumber 
-	 订单号码：FOrderNo 
-	 发票号码：FInvoiceNumber 
-	 发票代码：FInvoiceCode 
-	 电子发票备注：FInvoiceRemark 
-	 价税合计金额：FInvAmount 
-	 发票开票日期：FInvCreateDate 
-	 状态修改随机码：FRandomCode 
-	 AppID：FClientId 
-	 秘钥：FClientSecret 
-	 状态：FStatus 
-收票信息：FRecInvInfo 
-	 实体主键：FEntryID 
-	 收票单：FRecInv 
-	 发票代码：FRecInvCode 
-	 发票号码：FRecInvNumber 
-	 销售方名称：FRecInvSaleName 
-	 开票日期：FRecInvOpenDate 
-	 不含税金额：FRecInvAmount 
-	 税额：FRecInvTaxAmount 
-	 价税合计：FRecInvAllAmount 
-	 发票状态：FRecInvStatus 
-	 是否勾选：FRecInvCheck 
-	 是否勾选认证：FRecInvConfirm 
-	 查验状态：FRecInvExam 
-	 发票类别：FEInvoiceType 
-	 从源单携带：FISFROMSRCBILL 
-	 发票序列号：FIVSerialNo 
-	 发票是否有修改：FIsRevise 
-多收款人：FMultiPayeeEntity 
-	 实体主键：FEntryID 
-	 账户名称(收款人)：FPayee 
-	 开户银行：FBankName 
-	 银行账号：FBankNum 
-	 银行网点：FBankOutlets 
-	 收款金额：FPayeeAmount 
-	 备注：FPayeeRemark 
-	 支付方式：FSettlleType 
-	 收款单位：FRECTUNIT 
-冲借款信息：FSrcEntity 
-	 实体主键：FEntryID 
-	 借款单号：FSrcBillNo 
-	 借款人：FSrcStaffID 
-	 借款余额：FTurnoverAmount 
-	 冲销金额：FSrcWriteOffAmount 
-	 源单内码：FSrcFid 
-	 源单分录内码：FSrcEntityId 
-	 源单序号：FSrcSeq 
-	 源单类型：FSrcFormId 
-明细与发票联动处理关联关系：FReimbAndRecInvInfo 
-	 实体主键：FENTRYID 
-	 明细与发票联动处理标识：FReimbLinkRecInvCode 
-	 收票单内码：FRecInvFid 
-	 收票单分录内码：FRecInvEntryId 
-	 发票价税合计金额：FInvAllAmt 
-	 发票不含税金额：FInvAmt 
-	 发票税额：FInvTaxAmt 
-	 收票单编码：FRecInvoiceBillNo 
-	 保险费：FInsurancePremium 
-行程信息：FScheduleEntity 
-	 实体主键：FEntryID 
-	 开始日期：FStartDate 
-	 结束日期：FFinishDate 
-	 出发地：FStartSite 
-	 目的地：FEndSite 
-	 天数：FTravelDays 
-	 金额：FSumAmount 
-	 关联明细：FRecordId 
-	 出发地（费控）：FTravelStartFK 
-	 目的地（费控）：FTravelEndFK 
-	 出差地域：FTravelAreaIDT 
-	 住宿标准(人/天)：FAccommodationAmountT 
-	 补助标准(人/天)：FSubsidiesAmountT 
-	 住宿费汇总：FHotelSum 
-	 补助费汇总：FSubsidySum 
-	 出差人：FTravelerIDT 
-	 旺季：FISPEAKMONT 
-关联关系表：FEntity_Link 
-	 实体主键：FLinkId 
-	 业务流程图：FEntity_Link_FFlowId 
-	 推进路线：FEntity_Link_FFlowLineId 
-	 转换规则：FEntity_Link_FRuleId 
-	 源单表内码：FEntity_Link_FSTableId 
-	 源单表：FEntity_Link_FSTableName 
-	 源单内码：FEntity_Link_FSBillId 
-	 源单分录内码：FEntity_Link_FSId 
-	 原始携带量：FEntity_Link_FSrcOffSetAmountOld 
-	 修改携带量：FEntity_Link_FSrcOffSetAmount 
-	 原始携带量：FEntity_Link_FRELRQAMOUNTOld 
-	 修改携带量：FEntity_Link_FRELRQAMOUNT 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+单据头: FBillHead
+实体主键: FID
+单据编号: FBillNo
+单据状态: FDocumentStatus
+申请人: FProposerID
+申请部门: FRequestDeptID
+费用承担部门: FExpenseDeptID
+汇率: FExchangeRate
+币别: FCurrencyID
+汇率类型: FExchangeTypeID
+创建人: FCreatorId
+创建日期: FCreateDate
+修改人: FModifierId
+修改日期: FModifyDate
+审核人: FAPPROVERID
+审核日期: FAPPROVEDATE
+申请组织: FOrgID
+申请日期: FDate
+联系电话: FContactPhoneNo
+账户名称: FBankAccountNameT
+银行账号: FBankAccountT
+费用承担组织: FExpenseOrgId
+作废人: FCancellerId
+作废日期: FCancelDate
+作废状态: FCancelStatus
+本位币: FLocCurrencyID
+付款组织: FPayOrgId
+往来单位类型: FCONTACTUNITTYPE
+往来单位: FCONTACTUNIT
+收款银行（作废）: FBankTypeRecT
+省（作废）: FProvinceT
+城市（作废）: FCityT
+地区（作废）: FDistrictT
+申请付款: FPayBox
+申请退款: FrefundBox
+报销金额本位币: FLocExpAmountSum
+退/付款金额本位币: FLocReqAmountSum
+单据类型: FBillTypeID
+开户银行: FBankBranchT
+退款/付款: FRequestType
+是否合并付款: FCombinedPay
+核定报销金额汇总: FExpAmountSum
+核定退/付款金额汇总: FReqAmountSum
+通过网上银行支付: FOnlineBankShow
+银行账号: FRefundBankAccount
+账户名称: FRefundBankAccountName
+开户银行: FRefundBankBranch
+下游其他应付单编码: FOtherPayBillNumber
+事由: FCausa
+申请报销金额汇总: FReqReimbAmountSum
+申请退/付款金额汇总: FReqPayReFoundAmountSum
+拆分行: FSplitEntry
+费用外部承担: FIsCostOfOutORG
+外部往来单位类型: FOUTCONTACTUNITTYPE
+外部往来单位: FOUTCONTACTUNIT
+结算方式: FPaySettlleTypeID
+开户行地址: FBankAddress
+联行号: FBANKCNAPS
+扫描点: FScanPoint
+实报实付: FRealPay
+银行网点: FBankDetail
+国别: FCountry
+省: FNProvince
+城市: FNCity
+地区: FNDistrict
+业务类型: FBUSINESSTYPE
+多收款人: FMultiPayee
+创建来源: FSourceBillKey
+按报销金额填写: FillByBeimAmount
+负数报销单: FIsNegtiv
+收票编码: FReceivedInvCode
+银行账号携带: FBringAccount
+可用借款余额: FAvailableLoanAmount
+SwiftCode: FSwiftCode
+集成核定付款金额: FIntegratePaymentAmt
+费用申请单总金额: F_TJKT_Amount_83g
+是否借款: F_PSVQ_CheckBox_qtr
+同行人员: FPeerPerson
+超标说明: FOverState
+本位币(费控): FCCURRENCYID
+使用差旅标准: FUseReimStd
+报销明细: FEntity
+实体主键: FEntryID
+费用项目: FExpID
+发票类型: FInvoiceType
+申请报销金额: FExpenseAmount
+税率%: FTaxRate
+税额: FTaxAmt
+费用金额(不含税）: FTaxSubmitAmt
+核定报销金额: FExpSubmitAmount
+申请退/付款金额: FRequestAmount
+核定退/付款金额: FReqSubmitAmount
+费用承担产品: FProductID
+结算方式: FSettlleTypeID
+通过网上银行支付: FOnlineBank
+收款银行: FBankType
+省: FProvince
+城市: FCity
+地区: FDistrict
+账户名称: FBankAccountName
+开户银行: FBankBranch
+银行账号: FBankAccount
+核定报销金额本位币: FLocExpSubmitAmount
+核定金额本位币: FLocReqSubmitAmount
+冲借款金额: FBorrowAmount
+已付款金额: FPayedAmount
+已退款金额: FRefundedAmount
+冲销金额: FOffsetAmount
+已核销金额: FWRITTENOFFAMOUNT
+核销状态: FWRITTENOFFSTATUS
+已下推转移金额: FPushTFSAMOUNT
+已下推付款/退款金额: FPushPayAmount
+源单类型: FSourceBillType
+源单编号: FSourceBillNo
+源单可冲销金额: FSRCBORROWAMOUNT
+是否来源于借款: FIsFromBorrow
+本次冲销源单金额: FSrcOffSetAmount
+源单分录ID: FSosurceRowID
+不含税金额本位币: FLOCNOTAXAMOUNT
+税额本位币: FLOCTAXAMOUNT
+备注: FRemark
+核销关联控制: FWRITTENOFFAMOUNT_C
+已转移金额: FTransferedAMOUNT
+报销未付款金额: FReimbNotPayAmount
+费用承担部门: FExpenseDeptEntryID
+已下推应收金额: FPushRecAmount
+关联费用申请金额: FRELRQAMOUNT
+已生成发票: FISGENINV
+源单金额: FSRCBILLAMT
+匹配核销金额: FAUTOMATCHAMOUNT
+原币别: FOriginalCurrencyId
+原金额: FOriginalAmount
+付款汇率: FOriginalExRate
+收票单号: FRecInvBillNo
+付款期: FPAYPERIOD
+计划付款日期: FPAYDATE
+已下推负数报销金额: FNegtiAmt
+红蓝单互冲金额: FNegtiMatchAmt
+明细与发票联动处理标识: FReimbLinkInvCode
+发票号码: FInvNumber
+开票日期: FInvOpenDate
+项目: F_TJKT_Base_83g
+特殊备注: F_TJKT_Text_qtr
+开始日期: FTravelStartDate
+结束日期: FTravelEndDate
+出发地: FTravelStartSite
+目的地: FTravelEndSite
+市内交通费: FCityTrafficFee
+住宿费: FLodgingFee
+天数: FDays
+机票: FFlyAmount
+其他长途交通费: FOtherTraAmount
+出差补助: FTravelSubsidy
+其他费用: FOtherExpense
+机票（原金额）: FFlyAmountFor
+市内交通费（原金额）: FCityTrafficFeeFor
+其他长途交通费（原金额）: FOtherTraAmountFor
+住宿费（原金额）: FLodgingFeeFor
+出差补助（原金额）: FTravelSubsidyFor
+其他费用（原金额）: FOtherExpenseFor
+差旅费类型: FTravelType
+差旅费金额: FTravelAmount
+是否实名: FIsRealName
+抵扣类型: FDeductionType
+关联行程: FTravelSeq
+民航基金及保险: FCivilAviationFund
+差旅费金额（原金额）: FTravelAmountFor
+出发地（费控）: FDepartureID
+目的地（费控）: FArrivalID
+出差地域: FtravelAreaID
+住宿标准: FAccommodationAmount
+补助标准: FSubsidiesAmount
+住宿补助天数: FSubsidyDay
+标准类型: FSTDTYPES
+出差人: FTravelerID
+旺季: FISPEAKMON
+去重天数: FComputeDay
+其他标准: FOTHERSTDAMT
+电子发票: FEInvoiceEntity
+纳税人识别号: FTaxNumber
+购货方名称: FCompanyName
+手机号码: FTelephone
+开票唯一流水号: FSwiftNumber
+订单号码: FOrderNo
+发票号码: FInvoiceNumber
+发票代码: FInvoiceCode
+电子发票备注: FInvoiceRemark
+价税合计金额: FInvAmount
+发票开票日期: FInvCreateDate
+状态修改随机码: FRandomCode
+AppID: FClientId
+秘钥: FClientSecret
+状态: FStatus
+收票信息: FRecInvInfo
+收票单: FRecInv
+发票代码: FRecInvCode
+发票号码: FRecInvNumber
+销售方名称: FRecInvSaleName
+开票日期: FRecInvOpenDate
+不含税金额: FRecInvAmount
+税额: FRecInvTaxAmount
+价税合计: FRecInvAllAmount
+发票状态: FRecInvStatus
+是否勾选: FRecInvCheck
+是否勾选认证: FRecInvConfirm
+查验状态: FRecInvExam
+发票类别: FEInvoiceType
+从源单携带: FISFROMSRCBILL
+发票序列号: FIVSerialNo
+发票是否有修改: FIsRevise
+多收款人: FMultiPayeeEntity
+账户名称(收款人): FPayee
+开户银行: FBankName
+银行账号: FBankNum
+银行网点: FBankOutlets
+收款金额: FPayeeAmount
+备注: FPayeeRemark
+支付方式: FSettlleType
+收款单位: FRECTUNIT
+冲借款信息: FSrcEntity
+借款单号: FSrcBillNo
+借款人: FSrcStaffID
+借款余额: FTurnoverAmount
+冲销金额: FSrcWriteOffAmount
+源单内码: FSrcFid
+源单分录内码: FSrcEntityId
+源单序号: FSrcSeq
+源单类型: FSrcFormId
+明细与发票联动处理关联关系: FReimbAndRecInvInfo
+明细与发票联动处理标识: FReimbLinkRecInvCode
+收票单内码: FRecInvFid
+收票单分录内码: FRecInvEntryId
+发票价税合计金额: FInvAllAmt
+发票不含税金额: FInvAmt
+发票税额: FInvTaxAmt
+收票单编码: FRecInvoiceBillNo
+保险费: FInsurancePremium
+行程信息: FScheduleEntity
+开始日期: FStartDate
+结束日期: FFinishDate
+出发地: FStartSite
+目的地: FEndSite
+天数: FTravelDays
+金额: FSumAmount
+关联明细: FRecordId
+出发地（费控）: FTravelStartFK
+目的地（费控）: FTravelEndFK
+出差地域: FTravelAreaIDT
+住宿标准(人/天): FAccommodationAmountT
+补助标准(人/天): FSubsidiesAmountT
+住宿费汇总: FHotelSum
+补助费汇总: FSubsidySum
+出差人: FTravelerIDT
+旺季: FISPEAKMONT
+关联关系表: FEntity_Link
+实体主键: FLinkId
+业务流程图: FEntity_Link_FFlowId
+推进路线: FEntity_Link_FFlowLineId
+转换规则: FEntity_Link_FRuleId
+源单表内码: FEntity_Link_FSTableId
+源单表: FEntity_Link_FSTableName
+源单内码: FEntity_Link_FSBillId
+源单分录内码: FEntity_Link_FSId
+原始携带量: FEntity_Link_FSrcOffSetAmountOld
+修改携带量: FEntity_Link_FSrcOffSetAmount
+原始携带量: FEntity_Link_FRELRQAMOUNTOld
+修改携带量: FEntity_Link_FRELRQAMOUNT

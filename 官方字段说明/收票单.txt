@@ -1,302 +1,106 @@
-一、请求参数说明：
-1.formid：业务对象表单Id，字符串类型（必录）
-2.data：JSON格式数据（详情参考JSON格式数据）（必录）
-     2.1.NeedUpDateFields：需要更新的字段，数组类型，格式：[key1,key2,...] （非必录）注（更新字段时Model数据包中必须设置内码，若更新单据体字段还需设置分录内码）
-     2.2.NeedReturnFields：需返回结果的字段集合，数组类型，格式：[key,entitykey.key,...]（非必录） 注（返回单据体字段格式：entitykey.key）
-     2.3.IsDeleteEntry：是否删除已存在的分录，布尔类型，默认true（非必录）
-     2.4.SubSystemId：表单所在的子系统内码，字符串类型（非必录）
-     2.5.IsVerifyBaseDataField：是否验证所有的基础资料有效性，布尔类，默认false（非必录）
-     2.6.IsEntryBatchFill：是否批量填充分录，默认true（非必录）
-     2.7.ValidateFlag：是否验证数据合法性标志，布尔类型，默认true（非必录）注（设为false时不对数据合法性进行校验）
-     2.8.NumberSearch：是否用编码搜索基础资料，布尔类型，默认true（非必录）
-     2.9.IsAutoAdjustField：是否自动调整JSON字段顺序，布尔类型，默认false（非必录）
-     2.10.InterationFlags：交互标志集合，字符串类型，分号分隔，格式："flag1;flag2;..."（非必录） 例如（允许负库存标识：STK_InvCheckResult）
-     2.11.IgnoreInterationFlag：是否允许忽略交互，布尔类型，默认true（非必录）
-     2.12.IsControlPrecision：是否控制精度，为true时对金额、单价和数量字段进行精度验证，默认false（非必录）
-     2.13.ValidateRepeatJson：校验Json数据包是否重复传入，一旦重复传入，接口调用失败，传true则启用校验，传false则不校验（非必录）
-     2.14.Model：表单数据包，JSON类型（必录）
-备注:
-1.示例Model数据包中字段顺序不建议改变，否则可能会有相互影响，如果出现字段值被覆盖或丢失，则可以尝试把字段顺序向后调整一下。
-2.示例Model数据包默认包含允许引入的字段，实际按需构建既可。
-3.如需创建关联关系，可参考https://club.kingdee.com/forum.php?mod=viewthread&tid=1394265 。
-4.对于重要API接口，应设置幂等性校验、设置对应候选键（唯一性字段）的唯一索引等防重调用机制，以防并发导致数据重复。
-
-二、返回结果：
-{"Result":{"ResponseStatus":{"ErrorCode":"","IsSuccess":"false","Errors":[{"FieldName":"","Message":"","DIndex":0}],"SuccessEntitys":[{"Id":"","Number":"","DIndex":0}],"SuccessMessages":[{"FieldName":"","Message":"","DIndex":0}],"MsgCode":""},"Id":"","Number":"","NeedReturnData":[{}]}}
-
-三、代码示例：
-// 引用SDK组件Kingdee.BOS.WebApi.Client.dll; SDK下载地址：https://openapi.open.kingdee.com/ApiSdkCenter
-var client = new K3CloudApi();
-// 初始化登录认证，appID、appSec可在"第三方系统登录授权"中获取
-client.InitClient("your_acct_id", "appID", "appSec", "userName", 2052, "100", "https://your-k3cloud-host/K3Cloud/");
-client.Save("IV_ReceivedInvoice","{"NeedUpDateFields":[],"NeedReturnFields":[],"IsDeleteEntry":"false","SubSystemId":"","IsVerifyBaseDataField":"false","IsEntryBatchFill":"true","ValidateFlag":"true","NumberSearch":"true","IsAutoAdjustField":"true","InterationFlags":"","IgnoreInterationFlag":"","IsControlPrecision":"false","ValidateRepeatJson":"true","Model":{"FID":0,"FBillNo":"","FPURNAME":"","FPURTAXNUMBER":"","FPURMAILINFO":"","FPURBANKINFO":"","FSALENAME":"","FSALETAXNUMBER":"","FORIGINALSALETAXNUMBER":"","FSALEMAILINFO":"","FSALEBANKINFO":"","FIVCODE":"","FIVNUMBER":"","FSUMAMOUNT":0,"FLINKIVNUMBER":"","FLINKBILLTYPE":"","FCreatorId":{"FUserID":""},"FSOURCEORGID":{"FNumber":""},"FCreateDate":"1900-01-01","FSETTLEORGID":{"FNumber":""},"FSUMTAXAMOUNT":0,"FSUMALLAMOUNT":0,"FCHECKDATE":"1900-01-01","FISCHECK":"false","FISCONFIRM":"false","FCONFIRMDATE":"1900-01-01","FISEXAMINE":"","FINVOICETYPE":"","FSTATUS":"","FOPENDATE":"1900-01-01","FISSCANCONFIRM":"false","FSCANCONFIRMDATE":"1900-01-01","FPICTUREURL":"","FPDFURL":"","FEXAMINEDESC":"","FPIAOZONESERIALNUMBER":"","FGENERATETYPE":"","FDRAWER":"","FPAYEE":"","FREVIEWER":"","FRemark":"","FCHECKCODE":"","FPROXYMARK":"false","FTAXPERIOD":"","FLINKBILLID":0,"FPASSENGERNAME":"","FTAXRATE_H":0,"FDEVELOPMENTFUND":0,"FTIMEGETON":"","FTIMEGETOFF":"","FMILEAGE":"","FPLACE":"","FTRAINNUM":"","FSTATIONGETON":"","FSTATIONGETOFF":"","FSEATGRADE":"","FTRAINTIME":"","FFLIGHTNUM":"","FCONSUMPTIONTYPE":"","FISDEDUCTION":"","FISREVISE":"","FXBRLNAME":"","FXBRLURL":"","FISELECTRONIC":"false","FInsurancePremium":0,"FModifierId":{"FUserID":""},"FModifyDate":"1900-01-01","FEFFECTIVETAXAMOUNT":0,"FSpecialBusinessType":"","FCarrierDate":"1900-01-01","FPICTUREPDFURL":"","FPICTUREOFDURL":"","FPICTUREXMLURL":"","FTYPEOFBUSINESS":"","FLINKBILLDATE":"1900-01-01","FEntity":[{"FEntryID":0,"FITEMNAME":"","FUNIT":"","FSPECIFICATIONS":"","FQTY":0,"FPRICE":0,"FAMOUNT":0,"FTAXRATE":0,"FTAXAMOUNT":0,"FTOTALAMOUNT":0,"FTAXCODE":""}],"Fentity_JoinBill":[{"FEntryID":0,"FJoinBillTypeId":{"FNUMBER":""},"FJoinBillId":0,"FJoinBillNo":"","FJoinAmountFor":0,"FAccountSystem":{"FNUMBER":""},"FBookId":{"FNUMBER":""},"FPeriod":"","FVoucherId":0,"FVoucherDate":"1900-01-01","FVoucherBillNo":"","FVoucherGroupId":{"FNUMBER":""},"FVoucherGroupNo":"","FVoucherCreatorId":{"FUSERACCOUNT":""}}]}}");
-
-四、JSON格式数据：
-{
-    "NeedUpDateFields": [],
-    "NeedReturnFields": [],
-    "IsDeleteEntry": "false",
-    "SubSystemId": "",
-    "IsVerifyBaseDataField": "false",
-    "IsEntryBatchFill": "true",
-    "ValidateFlag": "true",
-    "NumberSearch": "true",
-    "IsAutoAdjustField": "true",
-    "InterationFlags": "",
-    "IgnoreInterationFlag": "",
-    "IsControlPrecision": "false",
-    "ValidateRepeatJson": "true",
-    "Model": {
-        "FID": 0,
-        "FBillNo": "",
-        "FPURNAME": "",
-        "FPURTAXNUMBER": "",
-        "FPURMAILINFO": "",
-        "FPURBANKINFO": "",
-        "FSALENAME": "",
-        "FSALETAXNUMBER": "",
-        "FORIGINALSALETAXNUMBER": "",
-        "FSALEMAILINFO": "",
-        "FSALEBANKINFO": "",
-        "FIVCODE": "",
-        "FIVNUMBER": "",
-        "FSUMAMOUNT": 0,
-        "FLINKIVNUMBER": "",
-        "FLINKBILLTYPE": "",
-        "FCreatorId": {
-            "FUserID": ""
-        },
-        "FSOURCEORGID": {
-            "FNumber": ""
-        },
-        "FCreateDate": "1900-01-01",
-        "FSETTLEORGID": {
-            "FNumber": ""
-        },
-        "FSUMTAXAMOUNT": 0,
-        "FSUMALLAMOUNT": 0,
-        "FCHECKDATE": "1900-01-01",
-        "FISCHECK": "false",
-        "FISCONFIRM": "false",
-        "FCONFIRMDATE": "1900-01-01",
-        "FISEXAMINE": "",
-        "FINVOICETYPE": "",
-        "FSTATUS": "",
-        "FOPENDATE": "1900-01-01",
-        "FISSCANCONFIRM": "false",
-        "FSCANCONFIRMDATE": "1900-01-01",
-        "FPICTUREURL": "",
-        "FPDFURL": "",
-        "FEXAMINEDESC": "",
-        "FPIAOZONESERIALNUMBER": "",
-        "FGENERATETYPE": "",
-        "FDRAWER": "",
-        "FPAYEE": "",
-        "FREVIEWER": "",
-        "FRemark": "",
-        "FCHECKCODE": "",
-        "FPROXYMARK": "false",
-        "FTAXPERIOD": "",
-        "FLINKBILLID": 0,
-        "FPASSENGERNAME": "",
-        "FTAXRATE_H": 0,
-        "FDEVELOPMENTFUND": 0,
-        "FTIMEGETON": "",
-        "FTIMEGETOFF": "",
-        "FMILEAGE": "",
-        "FPLACE": "",
-        "FTRAINNUM": "",
-        "FSTATIONGETON": "",
-        "FSTATIONGETOFF": "",
-        "FSEATGRADE": "",
-        "FTRAINTIME": "",
-        "FFLIGHTNUM": "",
-        "FCONSUMPTIONTYPE": "",
-        "FISDEDUCTION": "",
-        "FISREVISE": "",
-        "FXBRLNAME": "",
-        "FXBRLURL": "",
-        "FISELECTRONIC": "false",
-        "FInsurancePremium": 0,
-        "FModifierId": {
-            "FUserID": ""
-        },
-        "FModifyDate": "1900-01-01",
-        "FEFFECTIVETAXAMOUNT": 0,
-        "FSpecialBusinessType": "",
-        "FCarrierDate": "1900-01-01",
-        "FPICTUREPDFURL": "",
-        "FPICTUREOFDURL": "",
-        "FPICTUREXMLURL": "",
-        "FTYPEOFBUSINESS": "",
-        "FLINKBILLDATE": "1900-01-01",
-        "FEntity": [
-            {
-                "FEntryID": 0,
-                "FITEMNAME": "",
-                "FUNIT": "",
-                "FSPECIFICATIONS": "",
-                "FQTY": 0,
-                "FPRICE": 0,
-                "FAMOUNT": 0,
-                "FTAXRATE": 0,
-                "FTAXAMOUNT": 0,
-                "FTOTALAMOUNT": 0,
-                "FTAXCODE": ""
-            }
-        ],
-        "Fentity_JoinBill": [
-            {
-                "FEntryID": 0,
-                "FJoinBillTypeId": {
-                    "FNUMBER": ""
-                },
-                "FJoinBillId": 0,
-                "FJoinBillNo": "",
-                "FJoinAmountFor": 0,
-                "FAccountSystem": {
-                    "FNUMBER": ""
-                },
-                "FBookId": {
-                    "FNUMBER": ""
-                },
-                "FPeriod": "",
-                "FVoucherId": 0,
-                "FVoucherDate": "1900-01-01",
-                "FVoucherBillNo": "",
-                "FVoucherGroupId": {
-                    "FNUMBER": ""
-                },
-                "FVoucherGroupNo": "",
-                "FVoucherCreatorId": {
-                    "FUSERACCOUNT": ""
-                }
-            }
-        ]
-    }
-}
-
-五、字段说明：
-单据头：FBillHead 
-	 实体主键：FID 
-	 单据编号：FBillNo 
-	 数据状态：FDocumentStatus 
-	 销售方开户行及账号：FSALEBANKINFO 
-	 发票号码：FIVNUMBER 
-	 销售方纳税人识别号：FSALETAXNUMBER 
-	 销售方地址电话：FSALEMAILINFO 
-	 销售方名称：FSALENAME 
-	 发票代码：FIVCODE 
-	 不含税金额：FSUMAMOUNT 
-	 价税合计：FSUMALLAMOUNT 
-	 税额：FSUMTAXAMOUNT 
-	 开票日期：FOPENDATE 
-	 发票状态：FSTATUS 
-	 勾选日期：FCHECKDATE 
-	 是否勾选：FISCHECK 
-	 勾选认证日期：FCONFIRMDATE 
-	 是否勾选认证：FISCONFIRM 
-	 扫描认证日期：FSCANCONFIRMDATE 
-	 是否扫描认证：FISSCANCONFIRM 
-	 发票类别：FINVOICETYPE 
-	 购货方开户行及账号：FPURBANKINFO 
-	 购货方纳税识别号：FPURTAXNUMBER 
-	 购货方地址电话：FPURMAILINFO 
-	 购货方名称：FPURNAME 
-	 发票快照地址：FPDFURL 
-	 创建人：FCreatorId 
-	 创建日期：FCreateDate 
-	 来源组织：FSOURCEORGID 
-	 结算组织：FSETTLEORGID 
-	 关联单据编号：FLINKIVNUMBER 
-	 关联单据类型：FLINKBILLTYPE 
-	 发票原件地址：FPICTUREURL 
-	 查验状态：FISEXAMINE 
-	 查验结果：FEXAMINEDESC 
-	 发票云流水号：FPIAOZONESERIALNUMBER 
-	 生成方式：FGENERATETYPE 
-	 开票人：FDRAWER 
-	 收款人：FPAYEE 
-	 复核人：FREVIEWER 
-	 备注：FRemark 
-	 校验码：FCHECKCODE 
-	 代开标识：FPROXYMARK 
-	 税款所属期：FTAXPERIOD 
-	 关联单据内码：FLINKBILLID 
-	 旅客姓名：FPASSENGERNAME 
-	 税率：FTAXRATE_H 
-	 民航发展基金：FDEVELOPMENTFUND 
-	 原始销售方纳税人识别号：FORIGINALSALETAXNUMBER 
-	 上车时间：FTIMEGETON 
-	 下车时间：FTIMEGETOFF 
-	 里程：FMILEAGE 
-	 所在地：FPLACE 
-	 车次：FTRAINNUM 
-	 起点：FSTATIONGETON 
-	 终点：FSTATIONGETOFF 
-	 座位等级：FSEATGRADE 
-	 乘车时间：FTRAINTIME 
-	 航班号：FFLIGHTNUM 
-	 消费类型：FCONSUMPTIONTYPE 
-	 是否可抵扣：FISDEDUCTION 
-	 发票是否有修改：FISREVISE 
-	 电子凭证XBRL文件名称：FXBRLNAME 
-	 电子凭证XBRL文件地址：FXBRLURL 
-	 是否电子凭证：FISELECTRONIC 
-	 保险费：FInsurancePremium 
-	 单据类型：FBillTypeID 
-	 修改人：FModifierId 
-	 修改日期：FModifyDate 
-	 有效税额：FEFFECTIVETAXAMOUNT 
-	 特定业务类型：FSpecialBusinessType 
-	 乘车日期：FCarrierDate 
-	 数电票税局源文件pdf：FPICTUREPDFURL 
-	 数电票税局源文件ofd：FPICTUREOFDURL 
-	 数电票税局源文件xml：FPICTUREXMLURL 
-	 业务类型：FTYPEOFBUSINESS 
-	 关联单据日期：FLINKBILLDATE 
-单据体：FEntity 
-	 实体主键：FEntryID 
-	 项目名称：FITEMNAME 
-	 单位：FUNIT 
-	 规格：FSPECIFICATIONS 
-	 数量：FQTY 
-	 单价：FPRICE 
-	 金额：FAMOUNT 
-	 税率：FTAXRATE 
-	 税额：FTAXAMOUNT 
-	 税收分类编码：FTAXCODE 
-	 金额合计：FTOTALAMOUNT 
-关联单据入账信息：Fentity_JoinBill 
-	 实体主键：FEntryID 
-	 关联单据类型：FJoinBillTypeId 
-	 关联单据编号：FJoinBillNo 
-	 会计核算体系：FAccountSystem 
-	 关联单据金额：FJoinAmountFor 
-	 账簿：FBookId 
-	 记账期间：FPeriod 
-	 关联单据内码：FJoinBillId 
-	 凭证ID：FVoucherId 
-	 凭证日期：FVoucherDate 
-	 凭证编号：FVoucherBillNo 
-	 凭证字：FVoucherGroupId 
-	 凭证号：FVoucherGroupNo 
-	 凭证制单人：FVoucherCreatorId 
-
-备注：错误代码MsgCode说明
-           0：默认
-           1：上下文丢失
-           2：没有权限
-           3：操作标识为空
-           4：异常
-           5：单据标识为空
-           6：数据库操作失败
-           7：许可错误
-           8：参数错误
-           9：指定字段/值不存在
-           10：未找到对应数据
-           11：验证失败
-           12：不可操作
-           13：网控冲突
-           14：调用限制
-           15：禁止管理员登录
+# 金蝶云星空只读字段映射
+# 格式：中文字段名: 字段Key
+单据头: FBillHead
+实体主键: FID
+单据编号: FBillNo
+数据状态: FDocumentStatus
+销售方开户行及账号: FSALEBANKINFO
+发票号码: FIVNUMBER
+销售方纳税人识别号: FSALETAXNUMBER
+销售方地址电话: FSALEMAILINFO
+销售方名称: FSALENAME
+发票代码: FIVCODE
+不含税金额: FSUMAMOUNT
+价税合计: FSUMALLAMOUNT
+税额: FSUMTAXAMOUNT
+开票日期: FOPENDATE
+发票状态: FSTATUS
+勾选日期: FCHECKDATE
+是否勾选: FISCHECK
+勾选认证日期: FCONFIRMDATE
+是否勾选认证: FISCONFIRM
+扫描认证日期: FSCANCONFIRMDATE
+是否扫描认证: FISSCANCONFIRM
+发票类别: FINVOICETYPE
+购货方开户行及账号: FPURBANKINFO
+购货方纳税识别号: FPURTAXNUMBER
+购货方地址电话: FPURMAILINFO
+购货方名称: FPURNAME
+发票快照地址: FPDFURL
+创建人: FCreatorId
+创建日期: FCreateDate
+来源组织: FSOURCEORGID
+结算组织: FSETTLEORGID
+关联单据编号: FLINKIVNUMBER
+关联单据类型: FLINKBILLTYPE
+发票原件地址: FPICTUREURL
+查验状态: FISEXAMINE
+查验结果: FEXAMINEDESC
+发票云流水号: FPIAOZONESERIALNUMBER
+生成方式: FGENERATETYPE
+开票人: FDRAWER
+收款人: FPAYEE
+复核人: FREVIEWER
+备注: FRemark
+校验码: FCHECKCODE
+代开标识: FPROXYMARK
+税款所属期: FTAXPERIOD
+关联单据内码: FLINKBILLID
+旅客姓名: FPASSENGERNAME
+税率: FTAXRATE_H
+民航发展基金: FDEVELOPMENTFUND
+原始销售方纳税人识别号: FORIGINALSALETAXNUMBER
+上车时间: FTIMEGETON
+下车时间: FTIMEGETOFF
+里程: FMILEAGE
+所在地: FPLACE
+车次: FTRAINNUM
+起点: FSTATIONGETON
+终点: FSTATIONGETOFF
+座位等级: FSEATGRADE
+乘车时间: FTRAINTIME
+航班号: FFLIGHTNUM
+消费类型: FCONSUMPTIONTYPE
+是否可抵扣: FISDEDUCTION
+发票是否有修改: FISREVISE
+电子凭证XBRL文件名称: FXBRLNAME
+电子凭证XBRL文件地址: FXBRLURL
+是否电子凭证: FISELECTRONIC
+保险费: FInsurancePremium
+单据类型: FBillTypeID
+修改人: FModifierId
+修改日期: FModifyDate
+有效税额: FEFFECTIVETAXAMOUNT
+特定业务类型: FSpecialBusinessType
+乘车日期: FCarrierDate
+数电票税局源文件pdf: FPICTUREPDFURL
+数电票税局源文件ofd: FPICTUREOFDURL
+数电票税局源文件xml: FPICTUREXMLURL
+业务类型: FTYPEOFBUSINESS
+关联单据日期: FLINKBILLDATE
+单据体: FEntity
+实体主键: FEntryID
+项目名称: FITEMNAME
+单位: FUNIT
+规格: FSPECIFICATIONS
+数量: FQTY
+单价: FPRICE
+金额: FAMOUNT
+税率: FTAXRATE
+税额: FTAXAMOUNT
+税收分类编码: FTAXCODE
+金额合计: FTOTALAMOUNT
+关联单据入账信息: Fentity_JoinBill
+关联单据类型: FJoinBillTypeId
+关联单据编号: FJoinBillNo
+会计核算体系: FAccountSystem
+关联单据金额: FJoinAmountFor
+账簿: FBookId
+记账期间: FPeriod
+关联单据内码: FJoinBillId
+凭证ID: FVoucherId
+凭证日期: FVoucherDate
+凭证编号: FVoucherBillNo
+凭证字: FVoucherGroupId
+凭证号: FVoucherGroupNo
+凭证制单人: FVoucherCreatorId
