@@ -2,7 +2,7 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.2.0
+version: 2.2.1
 description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
