@@ -17,39 +17,641 @@ from pathlib import Path
 from dateutil.relativedelta import relativedelta
 
 try:
-    from config import KINGDEE_CONFIG
-except ModuleNotFoundError:
-    # 未创建 config.py 时回退到环境变量（与 config.example.py 行为一致）。
-    # 请复制 config.example.py 为 config.py 并填写金蝶连接信息，
-    # 或通过 KINGDEE_BASE_URL / KINGDEE_ACCTID / KINGDEE_USERNAME / KINGDEE_PASSWORD 注入。
-    KINGDEE_CONFIG = {
-        "base_url": os.getenv("KINGDEE_BASE_URL", "https://your-k3cloud-host").strip(),
-        "acctid": os.getenv("KINGDEE_ACCTID", "").strip(),
-        "username": os.getenv("KINGDEE_USERNAME", "").strip(),
-        "password": os.getenv("KINGDEE_PASSWORD", "").strip(),
-    }
-
-try:
     import pandas as pd
 except ModuleNotFoundError:
     print("缺少依赖库 pandas。请执行：python -m pip install -r requirements.txt")
     raise
 
 
-APP_VERSION = "2026-07-24"
+APP_VERSION = "2026-09-17"
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
+
+# ────────────────────────── 凭据来源 ──────────────────────────
+# 优先级（高 → 低）：
+#   1) 环境变量 KINGDEE_BASE_URL / KINGDEE_ACCTID / KINGDEE_ACCT_NAME
+#      / KINGDEE_USERNAME / KINGDEE_PASSWORD
+#   2) 用户级配置 ~/.workbuddy/kingdee/config.json
+#      （推荐：在技能目录之外，升级/重装技能不会覆盖，也不会被误打包分发）
+#   3) 技能目录内的 config.py（早期版本写法，继续兼容）
+USER_CONFIG_PATH = Path.home() / ".workbuddy" / "kingdee" / "config.json"
+
+# 除连接信息外，用户配置里允许透传的可选键
+_OPTIONAL_CONFIG_KEYS = (
+    "account_book_number",
+    "account_book_numbers",
+    "bank_account_numbers",
+    "financial_report",
+)
+
+
+def _normalize_base_url(base_url):
+    """补全 base_url：确保以 /k3cloud/ 结尾，且不会重复拼接。
+
+    用户经常写漏 `/k3cloud/`，那会导致 403 空响应（很容易被误判成"账号密码错"）。
+    """
+    text = str(base_url or "").strip().rstrip("/")
+    if not text:
+        return ""
+    if text.lower().endswith("/k3cloud"):
+        return text + "/"
+    return text + "/k3cloud/"
+
+
+def _read_user_config_json():
+    """读取 ~/.workbuddy/kingdee/config.json。
+
+    支持两种写法：
+      A) 扁平：{"base_url": ..., "acct_name": ..., "username": ..., "password": ...}
+      B) 多账套：{"default": "a", "profiles": {"a": {...}, "b": {...}}}
+    """
+    if not USER_CONFIG_PATH.is_file():
+        return None
+    try:
+        data = json.loads(USER_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[WARN] 无法解析用户配置 {USER_CONFIG_PATH}：{exc}")
+        return None
+    if not isinstance(data, dict) or not data:
+        return None
+
+    profiles = data.get("profiles")
+    if isinstance(profiles, dict) and profiles:
+        want = (os.getenv("KINGDEE_PROFILE") or "").strip() or str(data.get("default") or "").strip()
+        if not want:
+            want = next(iter(profiles))
+        picked = profiles.get(want)
+        if not isinstance(picked, dict):
+            print(f"[WARN] 用户配置里没有 profile「{want}」，可用：{', '.join(profiles)}")
+            return None
+        common = {k: v for k, v in data.items() if k not in ("profiles", "default")}
+        return {**common, **picked, "_profile": want}
+
+    return dict(data)
+
+
+def load_kingdee_config():
+    """按优先级加载金蝶连接配置，返回 dict（含 `_source` 说明来源，不含明文口令的打印）。"""
+    env_base = (os.getenv("KINGDEE_BASE_URL") or "").strip()
+    if env_base:
+        return {
+            "base_url": env_base,
+            "acctid": (os.getenv("KINGDEE_ACCTID") or "").strip(),
+            "acct_name": (os.getenv("KINGDEE_ACCT_NAME") or "").strip(),
+            "username": (os.getenv("KINGDEE_USERNAME") or "").strip(),
+            "password": os.getenv("KINGDEE_PASSWORD") or "",
+            "_source": "环境变量 KINGDEE_*",
+        }
+
+    user_cfg = _read_user_config_json()
+    if user_cfg and str(user_cfg.get("base_url") or "").strip():
+        profile = user_cfg.pop("_profile", "")
+        user_cfg["_source"] = str(USER_CONFIG_PATH) + (f"（profile: {profile}）" if profile else "")
+        return user_cfg
+
+    try:
+        from config import KINGDEE_CONFIG as local_cfg  # 技能目录内配置（早期写法）
+        if isinstance(local_cfg, dict) and str(local_cfg.get("base_url") or "").strip():
+            cfg = dict(local_cfg)
+            cfg["_source"] = "技能目录 config.py"
+            return cfg
+    except ModuleNotFoundError:
+        pass
+    except Exception as exc:
+        print(f"[WARN] 读取技能目录 config.py 失败：{exc}")
+
+    return {
+        "base_url": "",
+        "acctid": "",
+        "acct_name": "",
+        "username": "",
+        "password": "",
+        "_source": "未配置",
+    }
+
+
+KINGDEE_CONFIG = load_kingdee_config()
+
+# ────────────────────────── 错误判读表 ──────────────────────────
+# 同一句"登录失败"背后的原因完全不同：白名单没配 ≠ 密码错 ≠ 账套 ID 错。
+# 这里把高频故障拆开，给出「根因 + 下一步动作」，避免用户反复盲试（盲试会锁号）。
+ERROR_HINTS = (
+    ("未指定允许调用WebAPI接口",
+     "该账号没有被加入 WebAPI 白名单（最高频故障，与账号密码无关）。\n"
+     "    让金蝶管理员操作：基础管理 → 公共设置 → 参数设置 → 基础管理 → BOS平台 → WebAPI\n"
+     "      → 「允许调用WebAPI接口用户」加入取数账号 → 保存（同页「白名单设置」可配可访问 IP）。\n"
+     "    注意：不是在「系统管理 → 用户管理」里勾选。"),
+    ("数据中心无法获取到",
+     "账套 ID（acctid）不对。\n"
+     "    执行 `python data_exporter.py --list-datacenters` 按账套名称查出正确的 Id；\n"
+     "    或在配置里改填 acct_name（账套名称），脚本会自动解析。"),
+    ("CheckPasswordPolicy", "账套已定位成功，是用户名或密码错。注意大小写（Hg ≠ HG）与首尾空格。"),
+    ("用户名或密码错误", "账号或密码错，注意大小写与首尾空格。"),
+    ("会话信息已丢失", "会话过期。重新执行一次命令即可（脚本每次都会重新登录）。"),
+    ("没有权限", "该账号缺少对应模块权限，找管理员开通，或换一个有权限的取数账号。"),
+    ("不允许", "账号权限或单据状态限制，先确认该账号在网页端能否打开这个单据。"),
+    ("元数据中标识为", "字段标识在当前账套不存在。用 `--inspect-fields <FormId>` 核对字段清单。"),
+    ("当前查询串无法解析", "字段名语法错（用了中文名或点号拼写）。改用英文标识（如 FBillNo）。"),
+    ("业务对象不存在", "FormId 写错。用 `--show-config` 看内置清单，或用 `--inspect-fields` 验证。"),
+    ("接口参数 data 不能为空", "请求载荷格式不对（这是本工具内部错误，请反馈）。"),
+)
+
+
+def error_hint_for(text):
+    """按错误原文给出根因与下一步动作；没有命中时返回空串。"""
+    body = str(text or "")
+    for key, hint in ERROR_HINTS:
+        if key in body:
+            return hint
+    return ""
+
+
+def print_config_guide(reason=""):
+    """配置缺失/不可用时的引导（对用户与 agent 都友好）。"""
+    example = {
+        "base_url": "https://你的域名/k3cloud/",
+        "acct_name": "账套名称（不用填 acctid）",
+        "username": "取数账号",
+        "password": "密码",
+    }
+    print("=" * 64)
+    print("未检测到可用的金蝶连接配置" + (f"：{reason}" if reason else ""))
+    print("=" * 64)
+    print("请任选一种方式配置（推荐方式一）：")
+    print()
+    print(f"方式一（推荐，技能升级/重装不会覆盖）：写 {USER_CONFIG_PATH}")
+    print(json.dumps(example, ensure_ascii=False, indent=2))
+    print()
+    print("方式二（环境变量，不落盘）：")
+    print("  KINGDEE_BASE_URL / KINGDEE_ACCTID / KINGDEE_ACCT_NAME")
+    print("  / KINGDEE_USERNAME / KINGDEE_PASSWORD")
+    print()
+    print("方式三（兼容旧写法）：复制 config.example.py 为 config.py 并填写")
+    print()
+    print("提示：")
+    print("  · 账套 ID 不用自己找 —— 填 acct_name 即可，或用下面命令列出全部账套：")
+    print("      python data_exporter.py --list-datacenters")
+    print("  · 首次配置完请先自检，它会逐步告诉你卡在哪一步：")
+    print("      python data_exporter.py --doctor")
+    print("=" * 64)
+
+
+def get_missing_config_keys(cfg):
+    """返回缺失的必填项名称列表；acctid 与 acct_name 二者有一即可。"""
+    missing = []
+    if not str(cfg.get("base_url") or "").strip():
+        missing.append("base_url（金蝶地址）")
+    if not (str(cfg.get("acctid") or "").strip() or str(cfg.get("acct_name") or "").strip()):
+        missing.append("acctid 或 acct_name（账套 ID / 账套名称，二者填一）")
+    if not str(cfg.get("username") or "").strip():
+        missing.append("username（取数账号）")
+    if not str(cfg.get("password") or ""):
+        missing.append("password（密码）")
+    return missing
+
+
+# ────────────────────────── 网络与自检工具 ──────────────────────────
+
+
+def _make_session():
+    session = requests.Session()
+    session.headers.update({"Content-Type": "application/json"})
+    return session
+
+
+def probe_server(base_url, timeout=10):
+    """探测服务器是否可达。返回 (状态码 或 None, 说明)。"""
+    url = _normalize_base_url(base_url)
+    if not url:
+        return None, "未配置 base_url"
+    try:
+        resp = requests.get(url, timeout=timeout, allow_redirects=False)
+    except requests.exceptions.SSLError as exc:
+        return None, f"SSL 握手失败：{exc}（地址可能是 http/https 写错，或证书不受信）"
+    except requests.exceptions.ConnectionError as exc:
+        return None, f"连不上服务器：{exc}（检查地址、网络/VPN、防火墙）"
+    except Exception as exc:
+        return None, f"请求异常：{exc}"
+    if resp.status_code == 403 and not (resp.text or "").strip():
+        return 403, "返回 403 且内容为空，通常是 URL 路径不对（漏了 /k3cloud/，或地址指向了网关/WAF）"
+    return resp.status_code, str(resp.headers.get("Content-Type") or "")
+
+
+def fetch_datacenters(base_url, timeout=30):
+    """拉取数据中心（账套）列表。
+
+    该接口**免认证**，不需要账号密码，所以在配置 acctid 之前就能用。
+    返回 [{id, name, number, db}]，其中 id 就是要填的 acctid。
+    """
+    import base64 as _b64
+    import gzip as _gzip
+
+    url = _normalize_base_url(base_url) + (
+        "Kingdee.BOS.ServiceFacade.ServicesStub.Account.AccountService."
+        "GetDataCenterList.common.kdsvc"
+    )
+    resp = requests.post(url, json={}, timeout=timeout)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code}：{(resp.text or '')[:200]}")
+
+    raw_text = (resp.text or "").strip()
+    data = None
+    try:
+        data = resp.json()
+    except Exception:
+        data = None
+    if data is None or isinstance(data, str):
+        text = data if isinstance(data, str) else raw_text
+        text = (text or "").strip()
+        if text.startswith("H4sI"):  # 部分环境把响应 base64+gzip 后再返回
+            text = _gzip.decompress(_b64.b64decode(text)).decode("utf-8", "replace")
+        try:
+            data = json.loads(text)
+        except Exception as exc:
+            raise RuntimeError(f"账套列表不是可解析的 JSON：{raw_text[:200]}") from exc
+
+    rows = []
+    if isinstance(data, list):
+        rows = data
+    elif isinstance(data, dict):
+        for key in ("Data", "data", "DataCenterList", "Result"):
+            if isinstance(data.get(key), list):
+                rows = data[key]
+                break
+
+    out = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        lower = {str(k).lower(): v for k, v in item.items()}
+        acct_id = str(lower.get("id") or "").strip()
+        if not acct_id:
+            continue
+        out.append({
+            "id": acct_id,
+            "name": str(lower.get("name") or "").strip(),
+            "number": str(lower.get("number") or "").strip(),
+            "db": str(lower.get("dbid") or lower.get("database") or "").strip(),
+        })
+    return out
+
+
+def resolve_acctid_by_name(base_url, acct_name, datacenters=None):
+    """用账套名称解析 acctid。返回 (acctid, 说明文本)；解析不出来时 acctid 为空字符串。"""
+    name = str(acct_name or "").strip()
+    if not name:
+        return "", ""
+    try:
+        centers = datacenters if datacenters is not None else fetch_datacenters(base_url)
+    except Exception as exc:
+        return "", f"拉取账套列表失败：{exc}"
+    hits = [c for c in centers if c["name"] == name] or [c for c in centers if name in c["name"]]
+    if len(hits) == 1:
+        return hits[0]["id"], f"按账套名称「{name}」解析到 acctid={hits[0]['id']}"
+    if len(hits) > 1:
+        shown = "、".join(f"{c['name']}({c['id']})" for c in hits)
+        return "", f"账套名称「{name}」匹配到多个：{shown}。请写完整名称，或直接填 acctid。"
+    available = "、".join(c["name"] for c in centers[:10]) or "（服务器返回的账套列表为空）"
+    return "", f"账套名称「{name}」不在该服务器的账套列表里。可用账套：{available}"
+
+
+def perform_login(session, base_url, acctid, username, password, timeout=30):
+    """登录金蝶，返回 (是否成功, 判读信息 dict)。
+
+    把「白名单未配 / 账套 ID 错 / 密码错 / URL 错」拆开判读——它们表现都是"登录失败"，
+    但处理方式完全不同，混成一句会让用户反复盲试（盲试会锁号）。
+    """
+    url = _normalize_base_url(base_url) + (
+        "Kingdee.BOS.WebApi.ServicesStub.AuthService.ValidateUser.common.kdsvc"
+    )
+    payload = {"acctid": acctid, "username": username, "password": password, "lcid": 2052}
+    try:
+        resp = session.post(url, json=payload, timeout=timeout)
+    except Exception as exc:
+        return False, {
+            "stage": "网络",
+            "message": f"请求失败：{exc}",
+            "hint": "确认服务器地址可达、URL 含 /k3cloud/、内网/VPN 已连接。",
+        }
+    if resp.status_code != 200:
+        hint = "HTTP 403 且空响应通常是 URL 路径错（漏了 /k3cloud/）；502/504 多为网关或代理问题。"
+        return False, {
+            "stage": "网络",
+            "message": f"HTTP {resp.status_code}：{(resp.text or '')[:200]}",
+            "hint": hint,
+        }
+    try:
+        data = resp.json()
+    except Exception:
+        return False, {
+            "stage": "响应解析",
+            "message": f"返回内容不是 JSON：{(resp.text or '')[:200]}",
+            "hint": "地址可能指向了非金蝶站点（或在网关/代理页面上）。确认 base_url 是金蝶云星空的 /k3cloud/ 地址。",
+        }
+    if not isinstance(data, dict):
+        return False, {"stage": "响应解析", "message": f"返回结构异常：{str(data)[:200]}", "hint": ""}
+    if data.get("LoginResultType") == 1:
+        return True, {"stage": "登录", "message": "登录成功", "session_id": data.get("KDSVCSessionId", "")}
+
+    message = str(data.get("Message") or "").strip() or json.dumps(data, ensure_ascii=False)[:200]
+    code = data.get("MessageCode", data.get("MsgCode"))
+    hint = error_hint_for(message) or error_hint_for(json.dumps(data, ensure_ascii=False))
+    return False, {
+        "stage": "登录",
+        "message": message,
+        "code": code,
+        "hint": hint or "核对账号、密码（注意大小写与首尾空格）。密码连续错约 5 次会锁号，不要反复重试。",
+    }
+
+
+def query_rows_once(session, base_url, form_id, field_keys, limit=1, filter_string=""):
+    """最小化 ExecuteBillQuery（只取少量行），用于自检。
+
+    ⚠️ `data` 必须是 JSON **字符串**；传 dict 会报「接口参数 data 不能为空」。
+    """
+    url = _normalize_base_url(base_url) + (
+        "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc"
+    )
+    payload = {
+        "formid": form_id,
+        "data": json.dumps({
+            "FormId": form_id,
+            "FieldKeys": field_keys,
+            "FilterString": filter_string,
+            "OrderString": "",
+            "TopRowCount": 0,
+            "StartRow": 0,
+            "Limit": limit,
+        }, ensure_ascii=False),
+    }
+    resp = session.post(url, json=payload, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code}：{(resp.text or '')[:150]}")
+    result = resp.json()
+    if not isinstance(result, list):
+        raise RuntimeError(f"返回结构异常：{json.dumps(result, ensure_ascii=False)[:200]}")
+    # 服务端会**把错误包装成数据行**返回（元素是 dict），不抛异常 → 必须先判掉
+    for row in result:
+        if isinstance(row, dict) or (isinstance(row, list) and any(isinstance(x, dict) for x in row)):
+            text = json.dumps(row, ensure_ascii=False)[:300]
+            raise RuntimeError(f"接口返回错误对象：{text}\n      {error_hint_for(text)}")
+    return result
+
+
+def fetch_business_info(session, base_url, form_id):
+    """查询业务对象元数据（实体 + 字段全清单）。
+
+    ⚠️ 载荷必须是 `{"data": {"FormId": ...}}`（外面要包一层 data）。
+    """
+    url = _normalize_base_url(base_url) + (
+        "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.QueryBusinessInfo.common.kdsvc"
+    )
+    resp = session.post(url, json={"data": {"FormId": form_id}}, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code}：{(resp.text or '')[:200]}")
+    data = resp.json()
+    result = data.get("Result") if isinstance(data, dict) else None
+    if not isinstance(result, dict):
+        raise RuntimeError(f"返回结构异常：{json.dumps(data, ensure_ascii=False)[:200]}")
+    status = result.get("ResponseStatus") or {}
+    if not status.get("IsSuccess"):
+        errors = status.get("Errors") or []
+        message = "；".join(str(e.get("Message") or e) for e in errors) or json.dumps(status, ensure_ascii=False)[:200]
+        raise RuntimeError(f"查询失败：{message}\n      {error_hint_for(message)}")
+    return result.get("NeedReturnData") or {}
+
+
+def _meta_name(name_value):
+    """元数据里的 Name 是 [{'Key':2052,'Value':'中文名'}, ...]，优先取简体中文。"""
+    if isinstance(name_value, str):
+        return name_value
+    if isinstance(name_value, list):
+        for item in name_value:
+            if isinstance(item, dict) and item.get("Key") == 2052:
+                return str(item.get("Value") or "")
+        for item in name_value:
+            if isinstance(item, dict) and item.get("Value"):
+                return str(item["Value"])
+    return ""
+
+
+def print_business_info(need_return_data, keyword="", json_out=""):
+    """打印业务对象的实体与字段清单；keyword 命中 Key/Name/FieldName 时只显示这些字段。"""
+    form_id = need_return_data.get("Id") or ""
+    form_name = _meta_name(need_return_data.get("Name"))
+    entries = need_return_data.get("Entrys") or []
+    total_fields = sum(len(e.get("Fields") or []) for e in entries if isinstance(e, dict))
+
+    kw = str(keyword or "").strip().lower()
+    print(f"FormId: {form_id}    {form_name}")
+    print(f"实体 {len(entries)} 个 / 字段 {total_fields} 个" + (f"（筛选：{keyword}）" if kw else ""))
+    print("-" * 72)
+
+    matched = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        fields = entry.get("Fields") or []
+        shown = []
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            key = str(field.get("Key") or "")
+            text = f"{key} {field.get('Name') or ''} {field.get('FieldName') or ''}".lower()
+            if kw and kw not in text:
+                continue
+            shown.append(field)
+        if kw and not shown:
+            continue
+        header = f"[{entry.get('Key')}] {_meta_name(entry.get('Name'))}   ({len(fields)} 字段"
+        header += f"，命中 {len(shown)})" if kw else ")"
+        print(header)
+        for field in shown:
+            matched += 1
+            name = _meta_name(field.get("Name")).strip()
+            marks = []
+            lookup = str(field.get("LookUpObjectFormId") or "").strip()
+            if lookup:
+                marks.append(f"引用 {lookup}")
+            if str(field.get("MustInput") or "0").strip() not in ("0", "", "False", "false"):
+                marks.append("必填")
+            suffix = f"   [{'，'.join(marks)}]" if marks else ""
+            print(f"    {str(field.get('Key') or ''):<34} {name}{suffix}")
+        print()
+
+    if kw and matched == 0:
+        print(f"没有字段命中「{keyword}」。")
+        print("提示：这是**权威**字段清单——查不到说明该字段在当前账套确实不存在，")
+        print("      不要继续猜字段名（猜出来的标识会直接报错）。")
+    print("-" * 72)
+    print(f"字段总数 {total_fields}（实体：{'、'.join(str(e.get('Key')) for e in entries if isinstance(e, dict))}）")
+
+    if json_out:
+        try:
+            path = Path(json_out).expanduser().resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(need_return_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"完整元数据已保存：{path}")
+        except Exception as exc:
+            print(f"[WARN] 元数据落盘失败：{exc}")
+
+
+def print_datacenters(base_url):
+    """列出服务器上的全部账套（acctid 来源）。"""
+    print(f"服务器：{_normalize_base_url(base_url)}")
+    try:
+        centers = fetch_datacenters(base_url)
+    except Exception as exc:
+        print(f"拉取账套列表失败：{exc}")
+        print("  → 检查 base_url 是否正确、能否在浏览器打开金蝶登录页（URL 需含 /k3cloud/）。")
+        return 1
+    if not centers:
+        print("服务器没有返回任何账套。确认该地址指向的是金蝶云星空站点（而不是网关或其它系统）。")
+        return 1
+    print(f"共 {len(centers)} 个账套（第 1 列就是要填的 acctid）：")
+    print("-" * 72)
+    for item in centers:
+        suffix = f"    [{item['number']}]" if item["number"] else ""
+        print(f"{item['id']}    {item['name']}{suffix}")
+    print("-" * 72)
+    print("把第 1 列的值填到配置的 acctid；或者只填 acct_name（账套名称），由脚本自动解析。")
+    return 0
+
+
+def _doctor_smoke(session, base_url):
+    """取数冒烟：能真的从账套里读出数据，才算接通。返回 (是否通过, 说明)。"""
+    attempts = (
+        ("ORG_Organizations", "FNumber,FName", "组织基础资料"),
+        ("BD_Organization", "FNumber,FName", "组织基础资料"),
+        ("BD_MATERIAL", "FNumber,FName", "物料基础资料"),
+    )
+    last_error = ""
+    for form_id, field_keys, label in attempts:
+        try:
+            rows = query_rows_once(session, base_url, form_id, field_keys, limit=1)
+        except Exception as exc:
+            last_error = str(exc)
+            continue
+        if rows:
+            return True, f"{label}（{form_id}）可读取"
+        last_error = f"{label}（{form_id}）查询成功但返回 0 行"
+    return False, (
+        f"{last_error}\n"
+        "      连接与登录都是通的，但读不到业务数据。按顺序排查：\n"
+        "        1) 该账号在网页端能否打开对应单据/基础资料？打不开 → 缺模块权限，找管理员开通。\n"
+        "        2) 单据菜单发布到多个应用但许可未买全时，需要在网页端确认许可状态。\n"
+        "        3) 换一个在网页端确认有权限的账号再自检。"
+    )
+
+
+def run_doctor():
+    """五步自检：配置 → 连通 → 账套 → 登录 → 取数冒烟。逐步给出可执行的下一步。"""
+    cfg = KINGDEE_CONFIG
+    print("=" * 64)
+    print(f"金蝶连接自检（KingdeeDataExporter {APP_VERSION}）")
+    print("=" * 64)
+    print(f"配置来源：{cfg.get('_source')}")
+    print(f"服务器：{_normalize_base_url(cfg.get('base_url')) or '（未配置）'}")
+    print(f"账套：{str(cfg.get('acctid') or '').strip() or cfg.get('acct_name') or '（未配置）'}")
+    print(f"账号：{str(cfg.get('username') or '').strip() or '（未配置）'}")
+    print()
+
+    # 1) 配置完整性
+    missing = get_missing_config_keys(cfg)
+    if missing:
+        print("[1/5] 配置完整性 …… 未通过")
+        print(f"      缺少：{'、'.join(missing)}")
+        print()
+        print_config_guide("配置不完整")
+        return 3
+    print("[1/5] 配置完整性 …… 通过")
+
+    base_url = _normalize_base_url(cfg.get("base_url"))
+
+    # 2) 服务器连通
+    status, detail = probe_server(base_url)
+    if status is None:
+        print("[2/5] 服务器连通 …… 未通过")
+        print(f"      {detail}")
+        print("      → 确认浏览器能打开金蝶登录页；URL 必须含 /k3cloud/；内网访问需连 VPN。")
+        return 3
+    print(f"[2/5] 服务器连通 …… 通过（HTTP {status}）")
+
+    # 3) 账套定位
+    acctid = str(cfg.get("acctid") or "").strip()
+    centers = None
+    try:
+        centers = fetch_datacenters(base_url)
+    except Exception as exc:
+        print(f"[3/5] 账套定位 …… 跳过（无法拉取账套列表：{exc}）")
+    if centers:
+        if acctid:
+            hit = [c for c in centers if c["id"] == acctid]
+            if hit:
+                print(f"[3/5] 账套定位 …… 通过（{hit[0]['name']}）")
+            else:
+                print("[3/5] 账套定位 …… 未通过：配置里的 acctid 不在这台服务器的账套列表里")
+                print("      可用账套：")
+                for item in centers[:15]:
+                    print(f"        {item['id']}    {item['name']}")
+                print("      → 改用上面的 Id，或把配置里的 acctid 换成 acct_name（账套名称）。")
+                return 3
+        else:
+            resolved, note = resolve_acctid_by_name(base_url, cfg.get("acct_name"), centers)
+            if not resolved:
+                print(f"[3/5] 账套定位 …… 未通过：{note}")
+                return 3
+            acctid = resolved
+            print(f"[3/5] 账套定位 …… 通过（{note}）")
+
+    # 4) 登录
+    session = _make_session()
+    ok, info = perform_login(session, base_url, acctid, cfg.get("username"), cfg.get("password"))
+    if not ok:
+        print("[4/5] 登录 …… 未通过")
+        print(f"      错误原文：{info.get('message')}")
+        if info.get("code") not in (None, ""):
+            print(f"      错误码：{info['code']}")
+        if info.get("hint"):
+            print(f"      → {info['hint']}")
+        return 3
+    print("[4/5] 登录 …… 通过")
+
+    # 5) 取数冒烟
+    smoke_ok, smoke_detail = _doctor_smoke(session, base_url)
+    if not smoke_ok:
+        print("[5/5] 取数冒烟 …… 未通过")
+        print(f"      {smoke_detail}")
+        return 3
+    print(f"[5/5] 取数冒烟 …… 通过（{smoke_detail}）")
+
+    print()
+    print("=" * 64)
+    print("结论：全部通过，可以正常取数。")
+    print("下一步：python data_exporter.py --show-config   # 看可导出的单据与报表")
+    print("=" * 64)
+    return 0
 
 
 class SalesDataExporter:
     """销售单据数据导出器"""
 
     def __init__(self, start_date=None, end_date=None, org_numbers=None, only=None, extra_fields=None, output_dir="."):
-        self.kingdee_config = KINGDEE_CONFIG
-        self.session = requests.Session()
-        self.session.headers.update({"Content-Type": "application/json"})
-        self.base_url = self.kingdee_config["base_url"] + "/k3cloud/"
+        self.kingdee_config = dict(KINGDEE_CONFIG)
+        self.session = _make_session()
+        self.base_url = _normalize_base_url(self.kingdee_config.get("base_url"))
         self.output_dir = Path(output_dir).expanduser().resolve()
+        self._login_ok = False
+        self._login_fail_count = 0
+
+        # 配置缺失时不在这里中断 —— 否则 `--show-config` 也用不了。
+        # 真正需要登录时会明确报错并给出配置引导。
+        self._missing_config = get_missing_config_keys(self.kingdee_config)
+        if self._missing_config:
+            print(f"[提示] 当前还没有可用的金蝶连接配置（缺少：{'、'.join(self._missing_config)}）。")
+            print("       查看配置方法：python data_exporter.py --help-config")
+            print("       配置完成后自检：python data_exporter.py --doctor")
+            print()
 
         self.only = self._normalize_only(only)
         self.official_fields_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "官方字段说明")
@@ -781,29 +1383,65 @@ class SalesDataExporter:
             "FSortRadioGroup": "0",
         }
 
+    def _resolve_acctid(self):
+        """acctid 为空时按 acct_name 自动解析（GetDataCenterList 免认证，登录前可用）。"""
+        acctid = str(self.kingdee_config.get("acctid") or "").strip()
+        if acctid:
+            return acctid
+        acct_name = str(self.kingdee_config.get("acct_name") or "").strip()
+        if not acct_name:
+            raise RuntimeError(
+                "未配置账套：请填写 acctid，或填写 acct_name（账套名称）由脚本自动解析。\n"
+                "  不确定账套 ID 时执行：python data_exporter.py --list-datacenters"
+            )
+        resolved, note = resolve_acctid_by_name(self.kingdee_config.get("base_url"), acct_name)
+        if not resolved:
+            raise RuntimeError(f"无法确定账套：{note}")
+        print(f"  {note}")
+        self.kingdee_config["acctid"] = resolved
+        return resolved
+
     def login_kingdee(self):
-        """登录金蝶云"""
-        login_data = {
-            "acctid": self.kingdee_config["acctid"],
-            "username": self.kingdee_config["username"],
-            "password": self.kingdee_config["password"],
-            "lcid": 2052,
-        }
+        """登录金蝶云。
 
-        url = self.base_url + "Kingdee.BOS.WebApi.ServicesStub.AuthService.ValidateUser.common.kdsvc"
+        失败时按错误原文给出「根因 + 下一步」；并对账号密码类失败做**防锁号**保护
+        —— 金蝶密码连续错约 5 次会锁账号，所以判读为凭据问题时不自动重试。
+        """
+        if self._login_ok:
+            return True
+        if self._missing_config:
+            print_config_guide("配置不完整：" + "、".join(self._missing_config))
+            raise RuntimeError("缺少金蝶连接配置，已中止（配置方法见上方提示）。")
 
-        try:
-            response = self.session.post(url, json=login_data, timeout=30)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get("LoginResultType") == 1:
-                    print("登录成功")
-                    return True
-            print("登录失败")
-            return False
-        except Exception as e:
-            print(f"登录异常: {e}")
-            return False
+        acctid = self._resolve_acctid()
+        ok, info = perform_login(
+            self.session,
+            self.base_url,
+            acctid,
+            self.kingdee_config.get("username"),
+            self.kingdee_config.get("password"),
+        )
+        if ok:
+            self._login_ok = True
+            print("登录成功")
+            return True
+
+        self._login_fail_count += 1
+        message = info.get("message") or ""
+        hint = info.get("hint") or ""
+        print(f"登录失败（第 {self._login_fail_count} 次）：{message}")
+        if info.get("code") not in (None, ""):
+            print(f"  错误码：{info['code']}")
+        if hint:
+            print(f"  → {hint}")
+
+        credential_issue = any(word in f"{message}{hint}" for word in ("密码", "账号", "CheckPasswordPolicy"))
+        if credential_issue and self._login_fail_count >= 2:
+            raise RuntimeError(
+                "已连续 2 次登录失败，停止重试以免账号被锁定（金蝶密码连续错约 5 次会锁号）。\n"
+                "  请核对账号与密码（注意大小写、首尾空格）后再运行；忘记密码请找管理员重置。"
+            )
+        return False
 
     def get_all_organizations(self):
         """
@@ -868,7 +1506,12 @@ class SalesDataExporter:
             except Exception:
                 continue
 
-        raise RuntimeError("查询组织列表失败：请检查金蝶环境中组织基础资料的 FormId/字段是否不同")
+        raise RuntimeError(
+            "查询组织列表失败：金蝶环境里的组织基础资料 FormId/字段可能与默认值不同。\n"
+            "  已尝试：ORG_Organizations / BD_Organization。\n"
+            "  可用 --inspect-fields ORG_Organizations 核对当前账套的实际字段；\n"
+            "  若该账套用别的业务对象存组织，请反馈你的 FormId 以便补充默认清单。"
+        )
 
     def get_bill_data_with_filter(self, form_id, field_keys, filter_string):
         """使用字段和过滤条件获取单据数据"""
@@ -1678,10 +2321,15 @@ class SalesDataExporter:
             return True
 
         except Exception as e:
-            print(f"导出任务异常: {e}")
-            import traceback
+            print(f"导出任务异常：{e}")
+            hint = error_hint_for(str(e))
+            if hint:
+                print(f"  → {hint}")
+            if os.getenv("KINGDEE_DEBUG"):
+                import traceback
 
-            traceback.print_exc()
+                traceback.print_exc()
+            print("  （需要完整堆栈时设置环境变量 KINGDEE_DEBUG=1 后重跑）")
             return False
 
 
@@ -1740,6 +2388,37 @@ def print_update_notice(update_info):
     print("=" * 60)
 
 
+def inspect_fields_command(form_id, keyword="", json_out=""):
+    """`--inspect-fields` 的实现：登录 → QueryBusinessInfo → 打印字段清单。"""
+    missing = get_missing_config_keys(KINGDEE_CONFIG)
+    if missing:
+        print_config_guide("配置不完整：" + "、".join(missing))
+        return 3
+    base_url = _normalize_base_url(KINGDEE_CONFIG.get("base_url"))
+    session = _make_session()
+    acctid = str(KINGDEE_CONFIG.get("acctid") or "").strip()
+    if not acctid:
+        acctid, note = resolve_acctid_by_name(base_url, KINGDEE_CONFIG.get("acct_name"))
+        if not acctid:
+            print(f"无法确定账套：{note}")
+            return 3
+    ok, info = perform_login(
+        session, base_url, acctid, KINGDEE_CONFIG.get("username"), KINGDEE_CONFIG.get("password")
+    )
+    if not ok:
+        print(f"登录失败：{info.get('message')}")
+        if info.get("hint"):
+            print(f"  → {info['hint']}")
+        return 3
+    try:
+        meta = fetch_business_info(session, base_url, form_id)
+    except Exception as exc:
+        print(f"查询失败：{exc}")
+        return 3
+    print_business_info(meta, keyword, json_out)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="金蝶云星空经营数据导出工具")
     parser.add_argument("--start", help="开始日期 YYYY-MM-DD")
@@ -1748,10 +2427,38 @@ def main():
     parser.add_argument("--only", help="只导出指定 form_id 或中文名称；多个项目用英文逗号分隔")
     parser.add_argument("--fields", dest="extra_fields", help="追加字段，格式为 表单:字段；多个配置用英文逗号分隔")
     parser.add_argument("--output-dir", default=".", help="导出文件保存目录，默认为当前目录")
-    parser.add_argument("--list-orgs", action="store_true", help="导出组织列表后退出")
+    parser.add_argument("--list-orgs", action="store_true", help="导出组织列表后退出（组织 = 账套内的核算组织）")
     parser.add_argument("--show-config", action="store_true", help="显示可导出的单据和报表后退出")
     parser.add_argument("--check-update", action="store_true", help="检查是否有新版本（仅此选项会访问 GitHub），不执行导出")
+    parser.add_argument(
+        "--doctor", action="store_true",
+        help="连接自检：配置 → 连通 → 账套 → 登录 → 取数冒烟，逐步给出修复建议",
+    )
+    parser.add_argument(
+        "--list-datacenters", action="store_true",
+        help="列出服务器上的全部账套（acctid 来源），无需账号密码",
+    )
+    parser.add_argument(
+        "--inspect-fields", metavar="FORM_ID",
+        help="列出某业务对象的实体与字段全清单（核对字段、排障用），如 --inspect-fields ER_ExpReimbursement",
+    )
+    parser.add_argument("--filter", dest="filter_keyword", default="", help="配合 --inspect-fields，按关键字过滤字段")
+    parser.add_argument("--json-out", default="", help="配合 --inspect-fields，把完整元数据保存为 JSON 文件")
+    parser.add_argument("--help-config", action="store_true", help="打印配置方法后退出")
     args = parser.parse_args()
+
+    if args.help_config:
+        print_config_guide()
+        return
+
+    if args.doctor:
+        sys.exit(run_doctor())
+
+    if args.list_datacenters:
+        sys.exit(print_datacenters(KINGDEE_CONFIG.get("base_url")))
+
+    if args.inspect_fields:
+        sys.exit(inspect_fields_command(args.inspect_fields, args.filter_keyword, args.json_out))
 
     if args.check_update:
         update_info = check_for_update()
