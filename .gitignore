@@ -10,3 +10,7 @@ config.py
 *.xlsx
 *.csv
 kds_report_raw.json
+
+# 内部工作稿与智能体记忆（禁止外发）
+_*.py
+.workbuddy/

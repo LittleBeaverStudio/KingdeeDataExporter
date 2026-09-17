@@ -15,6 +15,9 @@
 - 一次导出多个单据或报表
 - 使用中文名称或 `form_id` 精确选择内容
 - 查询全部组织编码
+- **连接自检**：五步定位"配置/网络/账套/登录/权限"到底卡在哪
+- **账套自动发现**：不用问实施商要账套 ID，只填账套名称即可
+- **字段核对**：查出某个单据在当前账套的权威字段清单，避免猜字段
 - 追加官方字段说明中的字段
 - 导出全组织数据后再按条件筛选
 
@@ -32,25 +35,39 @@ python data_exporter.py --show-config
 python -m pip install -r requirements.txt
 ```
 
-### 2. 填写本地配置
+### 2. 填写配置
 
-复制 `config.example.py` 为 `config.py`，然后填写：
+推荐写**用户级配置文件**（技能升级/重装不会覆盖，也不会被误打包分发）：
 
-```python
-KINGDEE_CONFIG = {
-    "base_url": "https://你的金蝶地址",
-    "acctid": "账套ID",
-    "username": "用户名",
-    "password": "密码",
+`~/.workbuddy/kingdee/config.json`（Windows：`C:\Users\<你>\.workbuddy\kingdee\config.json`）
+
+```json
+{
+  "base_url": "https://你的域名/k3cloud/",
+  "acct_name": "账套名称",
+  "username": "取数账号",
+  "password": "密码"
 }
 ```
 
-> 🔐 `config.py` 已加入 `.gitignore`。不要把真实账号、密码或账套 ID 提交到公开仓库。
+- **账套 ID 不用自己找** —— 只填 `acct_name`（账套名称）会自动解析；想直接填 `acctid` 就先跑 `--list-datacenters`。
+- 也可以用环境变量 `KINGDEE_BASE_URL` / `KINGDEE_ACCTID` / `KINGDEE_ACCT_NAME` / `KINGDEE_USERNAME` / `KINGDEE_PASSWORD`。
+- 兼容旧写法：复制 `config.example.py` 为 `config.py` 并填写。
+- 需要多个账套时用 `profiles` 结构 + `KINGDEE_PROFILE` 切换，详见 `SKILL.md`。
 
-### 3. 运行导出
+> 🔐 无论哪种方式，都不要把真实账号、密码或账套 ID 提交到公开仓库。
+
+### 3. 自检，然后运行导出
 
 ```bash
-python data_exporter.py
+python data_exporter.py --doctor      # 先确认接通（配置→连通→账套→登录→取数冒烟）
+python data_exporter.py               # 再导出
+```
+
+不知道从哪开始配，或忘记配置方式时：
+
+```bash
+python data_exporter.py --help-config
 ```
 
 完成后会在当前目录生成类似下面的文件：
@@ -198,21 +215,47 @@ https://github.com/LittleBeaverStudio/KingdeeDataExporter
 
 ## 🛠️ 常见问题
 
-### 不知道组织编码
+### 连接报错，不知道卡在哪
 
-运行：
+```bash
+python data_exporter.py --doctor
+```
+
+会逐步判定 配置 → 服务器连通 → 账套定位 → 登录 → 取数冒烟，哪一步失败就给哪一步的修复动作。
+最常见的两种：**WebAPI 白名单没配**（报 `MsgCode 11`，与账号密码无关）和 **密码大小写错**。
+完整判读表见 `references/error-playbook.md`。
+
+> ⚠️ 密码连续错约 5 次会锁账号。本工具判读为凭据问题时不自动重试，连续 2 次即中止。
+
+### 不知道账套 ID（acctid）
+
+```bash
+python data_exporter.py --list-datacenters
+```
+
+这个接口**免账号密码**，第 1 列就是 acctid。或者干脆只填 `acct_name`，由脚本自动解析。
+
+### 不知道组织编码
 
 ```bash
 python data_exporter.py --list-orgs
 ```
 
-### 不知道 `--only` 填什么
+注意区分：**账套**（acctid，一台服务器上的一个数据中心）≠ **组织**（账套内的核算组织，`--org` 用的编码）。
 
-运行：
+### 不知道 `--only` 填什么
 
 ```bash
 python data_exporter.py --show-config
 ```
+
+### 字段导不出来 / 报"字段不存在"
+
+```bash
+python data_exporter.py --inspect-fields ER_ExpReimbursement --filter 发票
+```
+
+这是当前账套的**权威**字段清单，查不到就说明该字段确实不存在，不要继续猜。
 
 ### 检查是否有新版本
 
@@ -232,6 +275,9 @@ config.example.py        安全配置示例
 requirements.txt         Python 依赖
 scripts/                 Excel 二次处理脚本
 官方字段说明/            金蝶字段参考
+references/              排障手册与查询实战
+  error-playbook.md      错误判读与自愈（含白名单配置路径）
+  query-cookbook.md      载荷格式、去重口径、状态码、场景配方
 agents/openai.yaml       AI 客户端展示信息
 ```
 
