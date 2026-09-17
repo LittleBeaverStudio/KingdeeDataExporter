@@ -2388,6 +2388,126 @@ def print_update_notice(update_info):
     print("=" * 60)
 
 
+def _query_all_pages(session, base_url, form_id, field_keys, filter_string="", page_size=2000, timeout=60):
+    """按主键分页拉全量数据（不限内置清单，任意 FormId）。"""
+    url = _normalize_base_url(base_url) + (
+        "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc"
+    )
+    all_rows = []
+    start = 0
+    while True:
+        payload = {
+            "formid": form_id,
+            "data": json.dumps({
+                "FormId": form_id,
+                "FieldKeys": field_keys,
+                "FilterString": filter_string,
+                "OrderString": "",
+                "TopRowCount": 0,
+                "StartRow": start,
+                "Limit": page_size,
+            }, ensure_ascii=False),
+        }
+        resp = session.post(url, json=payload, timeout=timeout)
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}：{(resp.text or '')[:200]}")
+        rows = resp.json()
+        if not isinstance(rows, list):
+            raise RuntimeError(f"返回结构异常：{json.dumps(rows, ensure_ascii=False)[:200]}")
+        for row in rows:
+            if isinstance(row, dict) or (isinstance(row, list) and any(isinstance(x, dict) for x in row)):
+                text = json.dumps(row, ensure_ascii=False)[:300]
+                raise RuntimeError(f"接口返回错误对象：{text}\n      {error_hint_for(text)}")
+        all_rows.extend(rows)
+        if len(rows) < page_size:
+            break
+        start += page_size
+    return all_rows
+
+
+def export_generic_form(form_id, fields="", filter_string="", output_dir="."):
+    """通用取数：把**任意**业务对象导出为 Excel，不限于内置清单。
+
+    供下游分析类 skill（资金助手 / 账套体检 / 风险雷达）复用，
+    避免每开发一个视角就回头改底座代码。
+
+    用法：
+      --form-id GL_Voucher                          # 自动取该对象全部字段
+      --form-id GL_Voucher --fields FBillNo,FDate   # 指定字段
+      --form-id GL_Voucher --filter "FDate>='2026-01-01'"
+    """
+    missing = get_missing_config_keys(KINGDEE_CONFIG)
+    if missing:
+        print_config_guide("配置不完整：" + "、".join(missing))
+        return 3
+
+    base_url = _normalize_base_url(KINGDEE_CONFIG.get("base_url"))
+    session = _make_session()
+    acctid = str(KINGDEE_CONFIG.get("acctid") or "").strip()
+    if not acctid:
+        acctid, note = resolve_acctid_by_name(base_url, KINGDEE_CONFIG.get("acct_name"))
+        if not acctid:
+            print(f"无法确定账套：{note}")
+            return 3
+    ok, info = perform_login(
+        session, base_url, acctid, KINGDEE_CONFIG.get("username"), KINGDEE_CONFIG.get("password")
+    )
+    if not ok:
+        print(f"登录失败：{info.get('message')}")
+        if info.get("hint"):
+            print(f"  → {info['hint']}")
+        return 3
+
+    keys = [k.strip() for k in str(fields or "").split(",") if k.strip()]
+    sheet = form_id
+    if not keys:
+        print(f"未指定字段，正在读取 {form_id} 的完整字段清单…")
+        try:
+            meta = fetch_business_info(session, base_url, form_id)
+        except Exception as exc:
+            print(f"读取元数据失败：{exc}")
+            return 3
+        for entry in meta.get("Entrys") or []:
+            if not isinstance(entry, dict):
+                continue
+            for field in entry.get("Fields") or []:
+                key = str(field.get("Key") or "").strip()
+                if key and key not in keys:
+                    keys.append(key)
+        sheet = _meta_name(meta.get("Name")) or form_id
+        if not keys:
+            print("该对象没有可用字段，请用 --fields 显式指定。")
+            return 3
+
+    print(f"对象：{form_id}（{sheet}）")
+    print(f"字段：{len(keys)} 个")
+    if filter_string:
+        print(f"过滤：{filter_string}")
+
+    try:
+        rows = _query_all_pages(session, base_url, form_id, ",".join(keys), filter_string)
+    except Exception as exc:
+        print(f"取数失败：{exc}")
+        return 3
+
+    df = pd.DataFrame(rows, columns=keys)
+    out_dir = Path(output_dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", str(sheet))[:60]
+    path = out_dir / f"{safe_name}_{form_id}_{ts}.xlsx"
+    try:
+        with pd.ExcelWriter(path) as writer:
+            df.to_excel(writer, sheet_name="数据", index=False)
+    except Exception as exc:
+        print(f"写入 Excel 失败：{exc}")
+        return 3
+
+    print(f"\n共 {len(df)} 行")
+    print(f"已导出：{path}")
+    return 0
+
+
 def inspect_fields_command(form_id, keyword="", json_out=""):
     """`--inspect-fields` 的实现：登录 → QueryBusinessInfo → 打印字段清单。"""
     missing = get_missing_config_keys(KINGDEE_CONFIG)
@@ -2425,7 +2545,7 @@ def main():
     parser.add_argument("--end", help="结束日期 YYYY-MM-DD")
     parser.add_argument("--org", help="组织编码；多个编码用英文逗号分隔，all 表示全部组织")
     parser.add_argument("--only", help="只导出指定 form_id 或中文名称；多个项目用英文逗号分隔")
-    parser.add_argument("--fields", dest="extra_fields", help="追加字段，格式为 表单:字段；多个配置用英文逗号分隔")
+    parser.add_argument("--fields", dest="extra_fields", help="追加字段，格式为 表单:字段；多个配置用英文逗号分隔。配合 --form-id 时改为逗号分隔的字段列表")
     parser.add_argument("--output-dir", default=".", help="导出文件保存目录，默认为当前目录")
     parser.add_argument("--list-orgs", action="store_true", help="导出组织列表后退出（组织 = 账套内的核算组织）")
     parser.add_argument("--show-config", action="store_true", help="显示可导出的单据和报表后退出")
@@ -2444,6 +2564,14 @@ def main():
     )
     parser.add_argument("--filter", dest="filter_keyword", default="", help="配合 --inspect-fields，按关键字过滤字段")
     parser.add_argument("--json-out", default="", help="配合 --inspect-fields，把完整元数据保存为 JSON 文件")
+    parser.add_argument(
+        "--form-id", dest="form_id", default="",
+        help="通用取数：导出任意业务对象（不限于内置清单），如 GL_Voucher / FA_Card / STK_Inventory",
+    )
+    parser.add_argument(
+        "--filter-string", dest="filter_string", default="",
+        help="配合 --form-id，直接传金蝶 FilterString，如 \"FDate>='2026-01-01'\"",
+    )
     parser.add_argument("--help-config", action="store_true", help="打印配置方法后退出")
     args = parser.parse_args()
 
@@ -2459,6 +2587,11 @@ def main():
 
     if args.inspect_fields:
         sys.exit(inspect_fields_command(args.inspect_fields, args.filter_keyword, args.json_out))
+
+    if args.form_id:
+        sys.exit(export_generic_form(
+            args.form_id, args.extra_fields or "", args.filter_string or "", args.output_dir
+        ))
 
     if args.check_update:
         update_info = check_for_update()

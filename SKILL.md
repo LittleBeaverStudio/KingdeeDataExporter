@@ -2,7 +2,7 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.1.1
+version: 2.2.0
 description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
@@ -122,6 +122,7 @@ python data_exporter.py --doctor
 | `--list-orgs` | 导出**组织**列表（账套内的核算组织，`--org` 用的编码） |
 | `--show-config` | 列出可导出的单据与报表（19 单据 + 10 报表） |
 | `--inspect-fields <FormId>` | 列出某业务对象的实体与字段全清单（核对字段/排障） |
+| `--form-id <FormId>` | 通用取数：导出**任意**业务对象，不限于内置清单 |
 | `--check-update` | 检查新版本（**唯一**会访问 GitHub 的选项） |
 
 ## 推荐流程
@@ -191,6 +192,27 @@ python data_exporter.py --inspect-fields AR_receivable --json-out meta_AR_receiv
 
 Windows 控制台出现中文参数编码问题时，优先使用字段 key。
 
+## 通用取数：任意业务对象
+
+内置清单之外的业务对象（凭证 `GL_Voucher`、资产卡片 `FA_Card`、即时库存 `STK_Inventory` 等），
+用 `--form-id` 直接取，**不需要改代码**——下游分析类 Skill 靠它复用本技能，不必各自实现取数逻辑：
+
+```bash
+# 取全字段（自动读取该对象的完整字段清单）
+python data_exporter.py --form-id GL_Voucher --filter-string "FDate>='2026-09-01' and FDate<='2026-09-30'"
+
+# 只取指定字段（先用 --inspect-fields 核对标识）
+python data_exporter.py --form-id FA_Card --fields "FNumber,FName,FAssetOrgID"
+
+# 不带过滤条件 = 导出该对象全部数据（注意数据量）
+python data_exporter.py --form-id STK_Inventory
+```
+
+- 输出仍是 Excel，工作表名自动取该对象的中文名。
+- 日期等过滤条件直接写金蝶 `FilterString`，用 `--filter-string` 传入。
+- ⚠️ **报表类对象不支持**（如 `GL_RPT_AccountBalance`、`AR_SumReport`）——
+  它们不是业务对象，走的是报表接口，请用 `--only` 从内置清单取。
+
 ## 二次筛选 Excel
 
 ```bash
@@ -215,6 +237,7 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | **必须先配 WebAPI 白名单** | 未配则一切取数失败（`MsgCode 11`）。**这与账号密码无关**，见下方排障 |
 | **字段引用只能查、不能当过滤条件** | 用 `FCreatorId.FName='某人'` 会报错。改用内码，或先拉全量再在本地过滤 |
 | **本技能只读** | 不做单据提交、审核、下推等写操作；写操作见 `kingdee-expense-flow` |
+| **报表类对象不走通用取数** | `--form-id` 查的是业务对象；报表（`GL_RPT_AccountBalance`、`AR_SumReport` 等）走另一个接口，请用 `--only` 从内置清单取 |
 
 ## 🔧 排障：一表定位
 
