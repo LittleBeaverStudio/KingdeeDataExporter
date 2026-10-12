@@ -37,7 +37,22 @@ python -m pip install -r requirements.txt
 
 ### 2. 填写配置
 
-推荐写**用户级配置文件**（技能升级/重装不会覆盖，也不会被误打包分发）：
+**推荐：配置向导（弹窗，明文不落盘）**
+
+```bash
+python setup_credentials.py
+```
+
+弹窗里**只需填 3 项：公司名（账套名称）、用户名、密码**。凭据用 **Windows 系统加密（DPAPI）**
+保存到 `~/.workbuddy/kingdee/credentials.bin` —— 绑当前 Windows 用户，同机其它用户读不出、
+拷到别的机器解不开、不在任何 git 仓库内。不写明文、不进对话记录、不落日志。
+
+只看状态不开窗：`python setup_credentials.py --check`
+
+**从旧版明文迁移**：若本机已有 `~/.workbuddy/kingdee/config.json`（密码明文），跑一次向导即可 ——
+读入旧值 → 加密保存 → **默认勾选删除该明文文件** → 提示**到金蝶后台修改一次密码**。
+
+**备选：写用户级配置文件**（旧版写法，兼容保留，**不推荐**）
 
 `~/.workbuddy/kingdee/config.json`（Windows：`C:\Users\<你>\.workbuddy\kingdee\config.json`）
 
@@ -52,8 +67,12 @@ python -m pip install -r requirements.txt
 
 - **账套 ID 不用自己找** —— 只填 `acct_name`（账套名称）会自动解析；想直接填 `acctid` 就先跑 `--list-datacenters`。
 - 也可以用环境变量 `KINGDEE_BASE_URL` / `KINGDEE_ACCTID` / `KINGDEE_ACCT_NAME` / `KINGDEE_USERNAME` / `KINGDEE_PASSWORD`。
+  ⚠️ 环境变量**不会被误提交进 git**，但**本地并不保密**（同用户其它进程可读、会进日志与崩溃转储）；
+  本机保密请用上面的向导。
 - 兼容旧写法：复制 `config.example.py` 为 `config.py` 并填写。
 - 需要多个账套时用 `profiles` 结构 + `KINGDEE_PROFILE` 切换，详见 `SKILL.md`。
+
+**读取优先级：环境变量 > 系统加密凭据 > 明文 `config.json` > 技能目录 `config.py`。**
 
 > 🔐 无论哪种方式，都不要把真实账号、密码或账套 ID 提交到公开仓库。
 

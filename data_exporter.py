@@ -90,8 +90,75 @@ def _read_user_config_json():
     return dict(data)
 
 
+_MIGRATION_HINT_SHOWN = False
+
+
+def _load_encrypted_config():
+    """读取 DPAPI 加密凭据（推荐方式，明文不落盘）。不可用/不存在返回 None。
+
+    见同目录 credstore.py —— 纯标准库（ctypes 调 crypt32），不是第三方依赖。
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import credstore  # type: ignore
+    except Exception:
+        return None
+    try:
+        if not credstore.available() or not credstore.exists():
+            return None
+        return credstore.load()
+    except Exception:
+        return None
+
+
+def _cfg_from_plaintext(cfg) -> bool:
+    """本次配置是否来自「含密码的旧版明文文件」。"""
+    return bool(cfg.get("_from_plaintext")) and bool(str(cfg.get("password") or "").strip())
+
+
+def _enforce_migration(cfg):
+    """⛔ 强制迁移闸门：仍用「含密码的明文配置」时**拒绝继续**。
+
+    为什么硬拦而不只是提示：只要明文还能用，工具就一直能跑，用户就永远不会去迁移。
+    确有自动化必须临时沿用的，可显式设 `KINGDEE_ALLOW_PLAINTEXT=1`（会打印告警）。
+    """
+    if not _cfg_from_plaintext(cfg):
+        return
+    if os.getenv("KINGDEE_ALLOW_PLAINTEXT") == "1":
+        print("[WARN] KINGDEE_ALLOW_PLAINTEXT=1 —— 正在使用**明文**凭据（过渡开关），请尽快迁移。")
+        return
+    raise SystemExit(
+        "⛔ 已阻断：本机仍用**明文**保存金蝶密码，出于安全考虑不再继续。\n"
+        "   明文文件：%s\n"
+        "\n"
+        "【给智能体的动作指令 —— **不要**叫用户敲命令或打开 .py 文件】\n"
+        "  1. 先把这段念给用户（关键：**删文件和改密码是两件事**，别让用户以为删了就完事）：\n"
+        "     「检测到你本机的金蝶密码是明文存的。建议先到**金蝶后台**把这个账号的密码改掉 ——\n"
+        "       因为文件能删，但『它曾被明文保存』这件事撤不回来（可能已被备份 / 云同步带走）；\n"
+        "       改完回来说一声『需要修改密钥』，我给你弹个窗口录新密码，保存后旧的明文文件会自动删掉。」\n"
+        "  2. 用户说「需要修改密钥」（或「改密码 / 换密码」）时，**由你**在后台运行下面这条\n"
+        "     —— 窗口会弹在用户屏幕上，不要阻塞等待：\n"
+        "         python setup_credentials.py --change-key\n"
+        "  3. 告诉用户：「窗口已弹出，在里面录入新密码并保存；保存后旧的明文文件会自动删除。」\n"
+        "  4. 用户说填完了，用下面这条确认（只看状态、不开窗）：\n"
+        "         python setup_credentials.py --check\n"
+        "     看到「就绪状态 : ✅ 已用加密凭据，闸门放行」后，重跑原命令即可。\n"
+        "\n"
+        "   （给用户：全程不用打开任何文件、不用敲命令，窗口由智能体弹出。）\n"
+        "   （过渡期若确有自动化必须沿用明文，可显式设 KINGDEE_ALLOW_PLAINTEXT=1，会打印告警。）\n"
+        % USER_CONFIG_PATH
+    )
+
+
 def load_kingdee_config():
-    """按优先级加载金蝶连接配置，返回 dict（含 `_source` 说明来源，不含明文口令的打印）。"""
+    """按优先级加载金蝶连接配置，返回 dict（含 `_source` 说明来源，不含明文口令的打印）。
+
+    优先级：环境变量 > **系统加密凭据** > ~/.workbuddy/kingdee/config.json（旧版明文）> 技能目录 config.py
+    """
     env_base = (os.getenv("KINGDEE_BASE_URL") or "").strip()
     if env_base:
         return {
@@ -103,10 +170,24 @@ def load_kingdee_config():
             "_source": "环境变量 KINGDEE_*",
         }
 
+    enc = _load_encrypted_config()
+    if (enc and str(enc.get("base_url") or "").strip()
+            and enc.get("username") and enc.get("password")):
+        return {
+            "base_url": enc.get("base_url", ""),
+            "acctid": enc.get("acctid", ""),
+            "acct_name": enc.get("acct_name", ""),
+            "username": enc.get("username", ""),
+            "password": enc.get("password", ""),
+            "_source": "系统加密凭据（credentials.bin，DPAPI）",
+        }
+
     user_cfg = _read_user_config_json()
     if user_cfg and str(user_cfg.get("base_url") or "").strip():
         profile = user_cfg.pop("_profile", "")
         user_cfg["_source"] = str(USER_CONFIG_PATH) + (f"（profile: {profile}）" if profile else "")
+        user_cfg["_from_plaintext"] = True
+        _enforce_migration(user_cfg)
         return user_cfg
 
     try:

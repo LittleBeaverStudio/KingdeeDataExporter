@@ -44,7 +44,25 @@ python -m pip install -r requirements.txt
 
 ### 第 2 步：配置连接（推荐方式一）
 
-**方式一：写用户级配置文件**（技能升级/重装不会覆盖，也不会被误打包分发）
+**方式一（推荐）：配置向导 —— 弹窗填写，明文不落盘**
+
+```bash
+python setup_credentials.py
+```
+
+弹窗里**只需填 3 项：公司名（账套名称）、用户名、密码**。凭据用 **Windows 系统加密（DPAPI）**
+保存到 `~/.workbuddy/kingdee/credentials.bin`：
+
+- 🔒 绑当前 Windows 用户 —— 同机其它用户读不出，拷到别的机器也解不开；
+- 🔒 不写明文文件、不进对话记录、不落日志（只回报字段名是否存在，**永不回显值**）；
+- 🔒 在技能目录之外，升级 / 重装 / 打包都不会带上它。
+
+只看状态不开窗：`python setup_credentials.py --check`；清除已保存凭据：`--delete`。
+
+**从旧版明文迁移**：若本机已有明文 `~/.workbuddy/kingdee/config.json`，跑一次向导即可 ——
+它会读入旧值、加密保存、**默认勾选删除该明文文件**，并提示**到金蝶后台修改一次密码**。
+
+**方式二：写用户级配置文件**（旧版写法，兼容保留，**不推荐**——密码是明文）
 
 创建 `~/.workbuddy/kingdee/config.json`（Windows 为 `C:\Users\<你>\.workbuddy\kingdee\config.json`）：
 
@@ -71,13 +89,24 @@ python -m pip install -r requirements.txt
 }
 ```
 
-**方式二：环境变量**（不落盘，适合分发/CI）
+**方式三：环境变量**（适合 CI / 无人值守）
 
 `KINGDEE_BASE_URL` / `KINGDEE_ACCTID`（或 `KINGDEE_ACCT_NAME`）/ `KINGDEE_USERNAME` / `KINGDEE_PASSWORD`
 
-**方式三：技能目录内 `config.py`**（早期写法，继续兼容）
+> ⚠️ **别把"环境变量更安全"理解成"本机保密"**：环境变量的好处是**不会被误提交进 git /
+> 被顺手打包带走**；但它在本地**并不保密** —— 同一 Windows 用户下其它进程可读，还会随
+> 子进程继承、进崩溃转储与日志。本机保密请用方式一（DPAPI）。
+
+**方式四：技能目录内 `config.py`**（早期写法，继续兼容）
 
 复制 `config.example.py` 为 `config.py` 并填写。⚠️ 该文件含明文凭据，**禁止**提交到任何仓库或打进分享包。
+
+**读取优先级：环境变量 > 系统加密凭据 > 明文 `config.json` > 技能目录 `config.py`。**
+
+> ⛔ **明文会被强制阻断**：只要本机还存在**含密码的明文** `~/.workbuddy/kingdee/config.json`，
+> 本技能会**直接阻断、拒绝取数**，并打印迁移 3 步（改密码 → 跑 `python setup_credentials.py`
+> 录新密码 → 向导自动删除明文文件）。软提示等于没有 —— 明文还能用就永远不会有人去迁移。
+> 过渡期确有自动化必须沿用明文的，可显式设 `KINGDEE_ALLOW_PLAINTEXT=1`（会打印告警）。
 
 ### 第 3 步：连接自检
 
