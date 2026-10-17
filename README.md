@@ -231,7 +231,7 @@ python data_exporter.py --list-objects --object-sub AR --json-out ar_objects.jso
 每次导出、导出失败、登录失败都会在 `~/.workbuddy/kingdee/audit.log` 追加一行 JSON：
 
 ```json
-{"ts": "2026-10-17 19:02:47", "action": "export_form", "version": "2.4.0",
+{"ts": "2026-10-17 19:02:47", "action": "export_form", "version": "2.4.1",
  "form": "BD_MATERIAL", "rows": 2908, "output": "BD_MATERIAL_BD_MATERIAL_20261017_190246.xlsx"}
 ```
 
