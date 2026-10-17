@@ -163,7 +163,8 @@ python data_exporter.py --doctor
   - 默认在当前目录写入导出的 Excel，可用 `--output-dir` 指定；`--inspect-fields --json-out` / `--list-objects --json-out` 时写入指定的 JSON；
   - 追加一行**审计记录**到 `~/.workbuddy/kingdee/audit.log`（见下）。
 - **审计日志**：每次导出/失败/登录失败追加一行 JSON，只记**时间、动作、对象 FormId、组织、行数、版本、成功与否**。
-  不记业务数据内容、不记账号密码。目的是事后能回答「这批经营数据什么时候被谁导走的」。
+  不记业务数据内容、不记账号密码。目的是事后能回答「这批数据是什么时候、导了哪个对象、多少行、成功与否」。
+  （**不记录账号名**——按本技能的原则，真实账号不进任何日志；需要追人请结合操作系统的登录审计。）
   关闭方式：`KINGDEE_AUDIT=0`。
 - **环境变量**：`KINGDEE_BASE_URL` / `KINGDEE_ACCTID` / `KINGDEE_ACCT_NAME` / `KINGDEE_USERNAME` / `KINGDEE_PASSWORD` / `KINGDEE_PROFILE`；`KINGDEE_DEBUG=1` 打印完整异常堆栈；`KINGDEE_AUDIT=0` 关闭审计；
   `KINGDEE_INSECURE_SSL=1` 关闭 HTTPS 证书校验（**仅**用于自建内网自签证书，默认关闭且会打印告警）。
