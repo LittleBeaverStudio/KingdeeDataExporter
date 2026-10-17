@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 销售出库开票跟踪表 (SAL_OutStockInvoiceRpt)
 # 格式：中文字段名: 字段Key
 单据状态: FFormStatus
 至: FMaterialTo

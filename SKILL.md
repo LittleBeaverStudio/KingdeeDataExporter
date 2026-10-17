@@ -2,8 +2,8 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.3.0
-description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选。
+version: 2.4.0
+description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选；新增对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
 
@@ -32,6 +32,17 @@ license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费�
 > （`~/.workbuddy/kingdee/config.json`），升级技能不会覆盖；只填**账套名称**即可，
 > 账套 ID 会自动解析。配置方法与自检见下方「首次使用」。
 
+> **2.4.0 相比上一版改了什么**（都不改变已有用法，老命令参数照旧）：
+>
+> - **依赖减到两个**：去掉 `requests`、`python-dateutil`，HTTP 与日期改用标准库 →
+>   受控内网 / 装不上轮子的机器也能跑；连接级重试 + 中文编码自适应解码（UTF-8 / GBK）。
+> - **新增对象探查**：`--list-subsystems` / `--list-objects` / `--test-form`，
+>   不知道 FormId 时也能定位到凭证、资产卡片这类清单外的对象。
+> - **Excel 交付格式**：表头加粗、首行冻结、列宽按内容自适应、自动筛选。
+> - **审计日志**：`~/.workbuddy/kingdee/audit.log` 记「谁在什么时候导了什么」，只记元数据。
+> - **报错判读更准**：组织列表失败会分清「没权限」和「对象不存在」—— 这两种的处理动作完全不同。
+> - **版本号单一来源** + 更新检查兼容「语义版本」与「日期形态」两种 tag（旧版本换了 tag 形态后提示会永久失效）。
+
 ---
 
 ## 🚀 首次使用：三步跑通
@@ -41,6 +52,17 @@ license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费�
 ```bash
 python -m pip install -r requirements.txt
 ```
+
+> **只有两个依赖**：`pandas`（数据整理）、`openpyxl`（写 Excel）。
+> 网络请求、凭据加密、日期计算全部用 Python 标准库实现，**不需要 requests / python-dateutil**。
+> 这一点很实际：很多客户内网装不上轮子、或者把已装的 pandas 强制降级会连带崩掉别的系统，
+> 依赖越少，装成功的概率越高。装不上时加国内镜像：
+>
+> ```bash
+> python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+> ```
+>
+> 版本要求：Python 3.8+；pandas 2.x、openpyxl 3.1+。
 
 ### 第 2 步：配置连接（推荐方式一）
 
@@ -123,9 +145,10 @@ python data_exporter.py --doctor
 1. 先确认用户拥有目标金蝶环境和数据的合法访问权限。
 2. 不在对话、日志或公开仓库中展示真实账号、密码、账套 ID 或业务数据。
 3. 遇到任何"连不上/查不到"，先跑 `--doctor` 定位，**不要连续重试登录**（见下方防锁号）。
-4. 不确定组织编码时，先运行 `--list-orgs`。
-5. 不确定单据或报表名称时，先运行 `--show-config`。
+4. 不确定组织编码时，先运行 `--list-orgs`（缺组织机构权限时会明确告知，此时改用 `--org <编码>`）。
+5. 不确定单据或报表名称时，先运行 `--show-config`；内置清单之外的，用 `--list-objects` 找 FormId。
 6. 数据量可能较大时，优先使用 `--org` 和 `--only` 缩小范围。
+7. 拿到一个陌生 FormId，先 `--test-form` 体检再取数，不要直接导。
 
 ## 权限与行为声明
 
@@ -136,23 +159,69 @@ python data_exporter.py --doctor
   - 仅显式传入 `--check-update` 时访问 GitHub Releases API 查询新版本，**默认不检查、不访问任何第三方服务**。
 - **本地文件读写**：
   - 读取配置（环境变量 → `~/.workbuddy/kingdee/config.json` → 技能目录 `config.py`，按此优先级取第一个可用的）；
-  - 读取 `官方字段说明/` 目录；
-  - 默认在当前目录写入导出的 Excel，可用 `--output-dir` 指定；`--inspect-fields --json-out` 时写入指定的元数据 JSON。
-- **环境变量**：`KINGDEE_BASE_URL` / `KINGDEE_ACCTID` / `KINGDEE_ACCT_NAME` / `KINGDEE_USERNAME` / `KINGDEE_PASSWORD` / `KINGDEE_PROFILE`；`KINGDEE_DEBUG=1` 时打印完整异常堆栈。
+  - 读取 `field-docs/` 目录（字段中文名 ↔ 字段标识对照表，28 个对象）；
+  - 默认在当前目录写入导出的 Excel，可用 `--output-dir` 指定；`--inspect-fields --json-out` / `--list-objects --json-out` 时写入指定的 JSON；
+  - 追加一行**审计记录**到 `~/.workbuddy/kingdee/audit.log`（见下）。
+- **审计日志**：每次导出/失败/登录失败追加一行 JSON，只记**时间、动作、对象 FormId、组织、行数、版本、成功与否**。
+  不记业务数据内容、不记账号密码。目的是事后能回答「这批经营数据什么时候被谁导走的」。
+  关闭方式：`KINGDEE_AUDIT=0`。
+- **环境变量**：`KINGDEE_BASE_URL` / `KINGDEE_ACCTID` / `KINGDEE_ACCT_NAME` / `KINGDEE_USERNAME` / `KINGDEE_PASSWORD` / `KINGDEE_PROFILE`；`KINGDEE_DEBUG=1` 打印完整异常堆栈；`KINGDEE_AUDIT=0` 关闭审计；
+  `KINGDEE_INSECURE_SSL=1` 关闭 HTTPS 证书校验（**仅**用于自建内网自签证书，默认关闭且会打印告警）。
 - 不启动子进程；除上述范围外不访问其他网络与文件；**本技能只读**，不写回金蝶任何数据。
 
 ## 常用命令
 
 | 命令 | 用途 |
 |---|---|
-| `--doctor` | 连接自检（配置→连通→账套→登录→取数冒烟），首次配置后必跑 |
+| `--doctor` | 连接自检（环境依赖→配置→连通→账套→登录→取数冒烟），首次配置后必跑 |
 | `--help-config` | 打印配置方法 |
 | `--list-datacenters` | 列出服务器上的全部**账套**（acctid 来源），免账号密码 |
 | `--list-orgs` | 导出**组织**列表（账套内的核算组织，`--org` 用的编码） |
 | `--show-config` | 列出可导出的单据与报表（19 单据 + 10 报表） |
+| `--list-subsystems` | 列出账套内的**子系统（模块）编号**，如 GL / AR / STK |
+| `--list-objects` | 列出**业务对象与 FormId**（可用 `--object-sub` / `--object-kw` 收窄） |
+| `--test-form <FormId>` | **体检**某个对象：元数据能否读、取数是否通 |
 | `--inspect-fields <FormId>` | 列出某业务对象的实体与字段全清单（核对字段/排障） |
 | `--form-id <FormId>` | 通用取数：导出**任意**业务对象，不限于内置清单 |
 | `--check-update` | 检查新版本（**唯一**会访问 GitHub 的选项） |
+| `--version` | 打印当前版本与构建日期 |
+
+## 对象探查：不知道 FormId 时怎么办
+
+内置清单之外的对象（凭证、资产卡片、即时库存、二开单据…）要取数，必须知道 FormId。
+以前只能靠猜或翻文档，现在按这个顺序走，一条链下来：
+
+```bash
+# ① 先看这台服务器上有哪些模块（编号 + 名称 + 对象数）
+python data_exporter.py --list-subsystems
+
+# ② 钻进某个模块，看它下面有哪些业务对象（显示 FormId）
+python data_exporter.py --list-objects --object-sub GL
+
+# ③ 只知道名字不知道 FormId，就按关键字搜（跨模块）
+python data_exporter.py --list-objects --object-kw 凭证
+
+# ④ 选定后先体检：元数据能不能读、取数能不能通
+python data_exporter.py --test-form GL_Voucher
+
+# ⑤ 体检通过再取数
+python data_exporter.py --form-id GL_Voucher --filter-string "FDate>='2026-09-01'"
+```
+
+**一个必须知道的坑**：**不要按 FormId 前缀猜模块归属**。
+BOS 设计器动态建模生成的对象，FormId 是纯数字码或 GUID（形如 `0ebcf871-cecc-4e2e-...`），
+不带任何模块前缀，按 `GL%` / `AR%` 这类前缀去筛会漏掉一大片。
+按子系统筛（`--object-sub`）才是全的 —— 子系统归属存在注册表的 `FSubSystemId` 字段里。
+
+**「在册」不等于「能取数」**：注册表里有的对象，可能是单据转换规则、打印模板、迁移方案，
+它们根本不是表单类对象，`--form-id` 一定失败。所以第 ④ 步的体检不能省。
+`--test-form` 会分开报「元数据」和「取数」两关，哪一关断了一眼看得出。
+
+完整清单可以落盘（`--json-out`），便于后续脚本化：
+
+```bash
+python data_exporter.py --list-objects --object-sub AR --json-out ar_objects.json
+```
 
 ## 推荐流程
 
@@ -206,11 +275,23 @@ python data_exporter.py --org ORG001 --output-dir "D:/secure/kingdee-exports"
 
 ## 追加官方字段
 
-先在 `官方字段说明/` 中查找字段，再用 `--fields` 追加默认未导出的字段：
+`field-docs/` 下每个对象一个文件（按 **FormId** 命名，如 `AR_receivable.txt`），
+内容是「中文字段名: 字段标识」的对照表。用 `--fields` 追加默认未导出的字段：
 
 ```bash
 python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEAMOUNT"
 ```
+
+也能直接写中文名（对照表里有的字段）：
+
+```bash
+python data_exporter.py --only 应收单 --fields "应收单:价税合计"
+```
+
+- 同一中文名在表头和明细里重复时（如「价税合计」），取**文档中首次出现**的那条（表头字段）；
+  要明细字段就用英文标识，最准。
+- 文件名用 FormId 而不是中文名，是为了跨系统解压/压缩包传递时不会变成乱码
+  （2.3.x 及更早用的是 `官方字段说明/<中文名>.txt`，代码仍能回退读取，不影响老目录）。
 
 字段不确定是否存在时，用 `--inspect-fields <FormId>` 核对当前账套的**权威**字段清单：
 
@@ -267,6 +348,10 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | **字段引用只能查、不能当过滤条件** | 用 `FCreatorId.FName='某人'` 会报错。改用内码，或先拉全量再在本地过滤 |
 | **本技能只读** | 不做单据提交、审核、下推等写操作；写操作见 `kingdee-expense-flow` |
 | **报表类对象不走通用取数** | `--form-id` 查的是业务对象；报表（`GL_RPT_AccountBalance`、`AR_SumReport` 等）走另一个接口，请用 `--only` 从内置清单取 |
+| **注册表里有 ≠ 能取数** | `--list-objects` 列的是业务对象注册表，其中混有单据转换规则、打印模板、迁移方案等**非表单类对象**，`--form-id` 必然失败。取数前先 `--test-form` 体检 |
+| **动态建模对象的 FormId 不带模块前缀** | 形如纯数字码或 GUID，按 `GL%` 前缀筛会漏。用 `--object-sub <子系统编号>` 按子系统归属筛才完整 |
+| **导全组织需要「组织机构」查看权限** | 缺该权限时 `--org all` 与 `--list-orgs` 都不可用。此时改用 `--org <组织编码>` 直接指定即可绕开 |
+| **组织对象 FormId 因环境而异** | 默认按 `ORG_Organizations` → `BD_Organization` 兜底；两者都不通时按报错分流（权限问题 / 对象不存在），不会统一报「字段错」 |
 
 ## 🔧 排障：一表定位
 
@@ -285,6 +370,10 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | 返回 `[[{"Result":...}]]` | **错误被伪装成数据行**（接口不抛异常） | 先判 `ResponseStatus.IsSuccess` 再取数；工具已内置该检测 |
 | 有单据但查不到数据 | 权限 / 字段可见性 / SubSystemId 许可 | 依次排查：过滤条件 → 字段可见性 → SubSystemId 许可 |
 | 导出了但某工作表空 | 期间、组织或 `--only` 名称不匹配 | 放宽条件先跑一次最小查询验证连通 |
+| 「您没有组织机构的查看权限」 | 账号缺组织机构权限 | 让管理员在 系统管理 → 用户管理 → 权限 授予；或改用 `--org <组织编码>` 绕开组织列表 |
+| 「无法将类型为 ConvertMetaData 的对象强制转换」 | 该 FormId 不是表单类对象（转换规则/打印模板/迁移方案） | 用 `--list-objects --object-kw <关键字>` 另选真正的单据对象 |
+| 元数据能读、`--form-id` 报错 | 对象不允许 WebAPI 查询，或子系统许可未买全 | 跑 `--test-form <FormId>` 分辨是元数据关还是取数关 |
+| 装依赖时报找不到 pandas | 环境缺依赖或 Python 版本过低 | `--doctor` 第 0 步会先报依赖；按提示 `pip install -r requirements.txt`，国内加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` |
 
 需要完整判读表与查询实战（去重口径、状态码字典、分页）时，读：
 - `references/error-playbook.md`
@@ -301,6 +390,9 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | 「这个字段导不出来」 | 先 `--inspect-fields <FormId> --filter <关键字>` 核对字段是否存在，再 `--fields <FormId>:<字段>` 追加 |
 | 「连接报错了」 | 先 `--doctor`，按第 N 步的提示修复，**不要连续重试** |
 | 「账套 ID 是多少」 | `--list-datacenters`（免账号密码） |
+| 「凭证/资产卡片/即时库存怎么导」 | `--list-objects --object-kw 凭证` 拿 FormId → `--test-form` 体检 → `--form-id` 取数 |
+| 「这个对象能不能导」 | `--test-form <FormId>`，分「元数据」「取数」两关报结果 |
+| 「以前导过什么数据」 | 读 `~/.workbuddy/kingdee/audit.log`（每行一条 JSON，只含时间/对象/行数） |
 
 ## 结果检查
 

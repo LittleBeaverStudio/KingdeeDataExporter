@@ -15,11 +15,17 @@
 - 一次导出多个单据或报表
 - 使用中文名称或 `form_id` 精确选择内容
 - 查询全部组织编码
-- **连接自检**：五步定位"配置/网络/账套/登录/权限"到底卡在哪
+- **连接自检**：六步定位"依赖/配置/网络/账套/登录/权限"到底卡在哪
 - **账套自动发现**：不用问实施商要账套 ID，只填账套名称即可
+- **对象探查**：列子系统 → 列业务对象（含 FormId）→ 体检能否取数，清单外的对象也能定位
 - **字段核对**：查出某个单据在当前账套的权威字段清单，避免猜字段
-- 追加官方字段说明中的字段
+- 追加官方字段说明中的字段（支持直接写中文名）
 - 导出全组织数据后再按条件筛选
+- **交付友好的 Excel**：表头加粗、首行冻结、列宽自适应、自动筛选
+- **审计日志**：每次取数留一行元数据记录（时间/对象/行数），不记业务内容
+
+> **依赖只有两个**：`pandas` + `openpyxl`。网络、加密、日期全部走 Python 标准库，
+> 不需要 `requests` / `python-dateutil` —— 受控内网装不上轮子时这一条很关键。
 
 目前覆盖销售、采购、库存、应收应付、收付款、费用、资金、总账和三大财务报表等常用数据。实际清单以这条命令为准：
 
@@ -158,11 +164,20 @@ python data_exporter.py --org all --only 应收单
 
 ## 🧩 追加默认字段
 
-`官方字段说明/` 保存了各类单据和报表的字段参考。需要临时增加默认未导出的字段时，使用 `--fields`：
+`field-docs/` 保存了各类单据和报表的字段参考（每个对象一个文件，按 FormId 命名，如 `AR_receivable.txt`）。需要临时增加默认未导出的字段时，使用 `--fields`：
 
 ```bash
 python data_exporter.py --only AR_receivable --fields "AR_receivable:FNOINVOICEAMOUNT"
 ```
+
+也支持直接写中文名（对照表里有的字段）：
+
+```bash
+python data_exporter.py --only 应收单 --fields "应收单:价税合计"
+```
+
+> 目录用 ASCII 文件名（FormId）而不是中文名，是为了压缩包跨系统解压时不出现乱码。
+> 2.3.x 及更早的 `官方字段说明/<中文名>.txt` 布局仍然兼容，代码会自动回退。
 
 Windows 控制台遇到中文参数编码问题时，优先使用字段 key。
 
@@ -183,7 +198,45 @@ KINGDEE_CONFIG["bank_account_numbers"] = ["银行账号1", "银行账号2"]
 
 合并报表还需要根据本企业的云星空报表模板，补充报表编号、会计体系、会计政策和合并范围等参数。
 
-`收票单`、`银行存款流水账` 等项目的可选字段，均可在 `官方字段说明/` 中查看。
+`收票单`、`银行存款流水账` 等项目的可选字段，均可在 `field-docs/` 中查看。
+
+## 🧭 清单外的对象怎么导（对象探查）
+
+凭证、资产卡片、即时库存、二开单据这些不在内置清单里的对象，用 `--form-id` 取数即可，
+前提是知道 FormId。不知道就走这条链：
+
+```bash
+python data_exporter.py --list-subsystems                      # ① 有哪些模块（GL / AR / STK …）
+python data_exporter.py --list-objects --object-sub GL          # ② 该模块下有哪些对象
+python data_exporter.py --list-objects --object-kw 凭证         # ③ 只知道名字就跨模块搜
+python data_exporter.py --test-form GL_Voucher                 # ④ 体检：元数据 + 取数两关
+python data_exporter.py --form-id GL_Voucher --filter-string "FDate>='2026-09-01'"   # ⑤ 取数
+```
+
+两个容易踩的点：
+
+- **别按 FormId 前缀猜模块**。动态建模生成的对象 FormId 是数字码或 GUID，不带 `GL` / `AR` 前缀，
+  按前缀筛会漏一大片。子系统归属存在 `FSubSystemId` 里，用 `--object-sub` 才筛得全。
+- **在册 ≠ 能取数**。注册表里混着单据转换规则、打印模板等非表单对象，`--form-id` 一定失败。
+  所以第 ④ 步不能省，`--test-form` 会分开告你卡在「元数据」还是「取数」。
+
+清单可落盘成 JSON，便于脚本化：
+
+```bash
+python data_exporter.py --list-objects --object-sub AR --json-out ar_objects.json
+```
+
+## 📝 审计日志
+
+每次导出、导出失败、登录失败都会在 `~/.workbuddy/kingdee/audit.log` 追加一行 JSON：
+
+```json
+{"ts": "2026-10-17 19:02:47", "action": "export_form", "version": "2.4.0",
+ "form": "BD_MATERIAL", "rows": 2908, "output": "BD_MATERIAL_BD_MATERIAL_20261017_190246.xlsx"}
+```
+
+只记元数据（时间 / 动作 / 对象 / 组织 / 行数 / 成功与否），**不记业务数据内容、不记账号密码**。
+目的是事后能回答「这批经营数据什么时候被谁导走的」。不需要就设 `KINGDEE_AUDIT=0` 关掉。
 
 ## 🔎 筛选已导出的 Excel
 
@@ -209,11 +262,15 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 KingdeeDataExporter/
 ├── SKILL.md
 ├── README.md
+├── CHANGELOG.md
 ├── data_exporter.py
+├── setup_credentials.py
+├── credstore.py
 ├── config.example.py
 ├── requirements.txt
 ├── scripts/
-└── 官方字段说明/
+├── references/
+└── field-docs/          # 字段参考，按 FormId 命名（ASCII 文件名）
 ```
 
 支持从 GitHub 扫描 Skill 的工具，可以直接使用仓库地址：
@@ -240,8 +297,9 @@ https://github.com/LittleBeaverStudio/KingdeeDataExporter
 python data_exporter.py --doctor
 ```
 
-会逐步判定 配置 → 服务器连通 → 账套定位 → 登录 → 取数冒烟，哪一步失败就给哪一步的修复动作。
+会逐步判定 运行环境 → 配置 → 服务器连通 → 账套定位 → 登录 → 取数冒烟，哪一步失败就给哪一步的修复动作。
 最常见的两种：**WebAPI 白名单没配**（报 `MsgCode 11`，与账号密码无关）和 **密码大小写错**。
+（`openpyxl` 缺失会在第 0 步就报出来 —— 否则要等到最后写 Excel 才炸，最难排查。）
 完整判读表见 `references/error-playbook.md`。
 
 > ⚠️ 密码连续错约 5 次会锁账号。本工具判读为凭据问题时不自动重试，连续 2 次即中止。
@@ -289,11 +347,14 @@ python data_exporter.py --check-update
 ```text
 SKILL.md                 AI 执行说明与触发描述
 README.md                中文使用介绍
+CHANGELOG.md             版本变更记录
 data_exporter.py         主程序
+setup_credentials.py     凭据向导（DPAPI 加密）
+credstore.py             凭据存取
 config.example.py        安全配置示例
-requirements.txt         Python 依赖
+requirements.txt         Python 依赖（仅 pandas + openpyxl）
 scripts/                 Excel 二次处理脚本
-官方字段说明/            金蝶字段参考
+field-docs/              金蝶字段参考（按 FormId 命名）
 references/              排障手册与查询实战
   error-playbook.md      错误判读与自愈（含白名单配置路径）
   query-cookbook.md      载荷格式、去重口径、状态码、场景配方

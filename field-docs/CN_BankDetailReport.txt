@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 银行存款流水账 (CN_BankDetailReport)
 # 格式：中文字段名: 字段Key
 结束日期: FEndDate
 包含未审核单据: FNotAudit

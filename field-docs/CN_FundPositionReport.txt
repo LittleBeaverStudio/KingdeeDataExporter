@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 资金头寸表 (CN_FundPositionReport)
 # 格式：中文字段名: 字段Key
 结束日期: FEndDate
 包含未审核单据: FNotAudit

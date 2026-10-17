@@ -6,24 +6,36 @@
 # - 配置位于同目录 `config.py`
 
 import argparse
-import requests
-import json
-import sys
-import os
 import copy
+import http.cookiejar
+import json
+import os
 import re
+import socket
+import ssl
+import sys
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
-from dateutil.relativedelta import relativedelta
 
 try:
     import pandas as pd
 except ModuleNotFoundError:
-    print("缺少依赖库 pandas。请执行：python -m pip install -r requirements.txt")
+    print("缺少依赖库 pandas，无法生成 Excel。")
+    print("  安装：python -m pip install -r requirements.txt")
+    print("  国内网络慢可加镜像：python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple")
+    print("  装完先跑自检：python data_exporter.py --doctor")
     raise
 
+_JSON = json  # HTTP 层里形参会占用 json 这个名字，用一个别名避免遮蔽
 
-APP_VERSION = "2026-09-17"
+
+APP_VERSION = "2.4.0"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
+BUILD_DATE = "2026-10-17"      # 用于和「日期形态」的 Release tag 比较
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 
@@ -35,6 +47,7 @@ RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/r
 #      （推荐：在技能目录之外，升级/重装技能不会覆盖，也不会被误打包分发）
 #   3) 技能目录内的 config.py（早期版本写法，继续兼容）
 USER_CONFIG_PATH = Path.home() / ".workbuddy" / "kingdee" / "config.json"
+AUDIT_LOG_PATH = Path.home() / ".workbuddy" / "kingdee" / "audit.log"
 
 # 除连接信息外，用户配置里允许透传的可选键
 _OPTIONAL_CONFIG_KEYS = (
@@ -294,10 +307,170 @@ def get_missing_config_keys(cfg):
 # ────────────────────────── 网络与自检工具 ──────────────────────────
 
 
+class NetworkError(Exception):
+    """网络层统一异常。
+
+    把 socket 超时、连接被重置、DNS 失败、URLError 等收敛成一种，
+    上层只需要判读「是网络问题还是金蝶返回的业务错误」，不必逐个 except 底层库。
+    """
+
+
+class SSLHandshakeError(NetworkError):
+    """TLS 握手失败：多为地址 http/https 写错，或服务器用自签证书。"""
+
+
+def _build_ssl_context():
+    """默认严格校验证书。
+
+    自建/内网环境常用自签证书，这类机器以前只能改代码或放弃 https；
+    现在可以用环境变量显式放行一次（默认关闭，不放宽任何默认行为）。
+    """
+    flag = str(os.environ.get("KINGDEE_INSECURE_SSL", "")).strip().lower()
+    if flag in ("1", "true", "yes", "on"):
+        print("[警告] 已按 KINGDEE_INSECURE_SSL 关闭 HTTPS 证书校验，仅建议在自建内网临时使用。")
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    return ssl.create_default_context()
+
+
+def _decode_body(raw, headers):
+    """按 BOM → Content-Type 声明的 charset → UTF-8 → GB18030 依次解码。
+
+    金蝶不同版本对中文的编码不统一（同一套接口，有的返回 UTF-8，有的返回 GBK），
+    以前依赖第三方库的默认猜测，遇到 GBK 响应会把中文错误信息变成乱码，导致判读失准。
+    """
+    if not raw:
+        return ""
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8", "replace")
+
+    charset = ""
+    try:
+        ctype = str(headers.get("Content-Type") or "") if headers else ""
+    except Exception:  # noqa: BLE001 - headers 形态不定，解码失败不该影响主流程
+        ctype = ""
+    match = re.search(r"charset=([\w\-]+)", ctype, re.I)
+    if match:
+        charset = match.group(1)
+
+    candidates = ([charset] if charset else []) + ["utf-8", "gb18030"]
+    for enc in candidates:
+        try:
+            return raw.decode(enc)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("utf-8", "replace")
+
+
+class _Response:
+    """最小响应对象：只保留本项目用到的四个成员（status_code / text / headers / json）。"""
+
+    def __init__(self, status_code, content, headers=None):
+        self.status_code = status_code
+        self.content = content or b""
+        self.headers = headers if headers is not None else {}
+        self.text = _decode_body(self.content, self.headers)
+
+    def json(self):
+        return _JSON.loads(self.text)
+
+    def __repr__(self):
+        return f"<Response {self.status_code} {len(self.content)}B>"
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """不跟随重定向：探测服务器时需要看到原始的 3xx/403，而不是被带到登录页。"""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        return None
+
+
+class _Session:
+    """标准库实现的最小 HTTP 会话：cookie 保持 + JSON 请求 + 超时 + 连接级重试。
+
+    为什么不用第三方 HTTP 库：技能要在客户的受控内网、离线机器、各种 Python 版本上跑，
+    「装不上依赖」是这类工具最常见的失败原因，而本技能真正必需的第三方库只有 Excel 相关的两个。
+    """
+
+    MAX_RETRY = 2
+    BACKOFF = (1.0, 2.0)
+
+    def __init__(self, timeout=60):
+        self.headers = {"Content-Type": "application/json"}
+        self.default_timeout = timeout
+        self.cookies = http.cookiejar.CookieJar()
+        self._ssl_ctx = _build_ssl_context()
+        self._opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.cookies),
+            urllib.request.HTTPSHandler(context=self._ssl_ctx),
+        )
+        self._opener_no_redirect = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.cookies),
+            urllib.request.HTTPSHandler(context=self._ssl_ctx),
+            _NoRedirect(),
+        )
+
+    # —— 对外接口：与历史调用保持一致（post/get + json= 关键字）——
+    def post(self, url, json=None, data=None, timeout=None, retry=None, headers=None):
+        body = data
+        merged = dict(self.headers)
+        if json is not None:
+            body = _JSON.dumps(json, ensure_ascii=False).encode("utf-8")
+            merged["Content-Type"] = "application/json; charset=utf-8"
+        if headers:
+            merged.update(headers)
+        return self._request("POST", url, body, merged, timeout, retry, True)
+
+    def get(self, url, timeout=None, allow_redirects=True, retry=None, headers=None):
+        merged = dict(self.headers)
+        if headers:
+            merged.update(headers)
+        return self._request("GET", url, None, merged, timeout, retry, allow_redirects)
+
+    # —— 内部：真正的发送与重试 ——
+    def _request(self, method, url, body, headers, timeout, retry, allow_redirects):
+        timeout = self.default_timeout if timeout is None else timeout
+        attempts = (self.MAX_RETRY if retry is None else max(0, int(retry))) + 1
+        opener = self._opener if allow_redirects else self._opener_no_redirect
+        last_error = None
+
+        for attempt in range(attempts):
+            request = urllib.request.Request(url, data=body, headers=headers, method=method)
+            try:
+                with opener.open(request, timeout=timeout) as resp:
+                    return _Response(resp.getcode(), resp.read(), resp.headers)
+            except urllib.error.HTTPError as exc:
+                # 服务端已经给了答复（含 3xx/403/500），属于「可判读」的信息，不重试也不改判
+                try:
+                    content = exc.read() or b""
+                except Exception:  # noqa: BLE001
+                    content = b""
+                return _Response(exc.code, content, exc.headers)
+            except urllib.error.URLError as exc:
+                reason = getattr(exc, "reason", exc)
+                if isinstance(reason, (ssl.SSLError, ssl.CertificateError)):
+                    raise SSLHandshakeError(f"SSL 握手失败：{reason}") from exc
+                last_error = NetworkError(f"连接失败：{reason}")
+            except (socket.timeout, TimeoutError) as exc:
+                last_error = NetworkError(f"请求超时（{timeout} 秒）：{exc}")
+            except Exception as exc:  # noqa: BLE001 - 连接被重置等底层异常统一收敛
+                last_error = NetworkError(f"请求异常：{exc}")
+
+            if attempt + 1 < attempts:
+                time.sleep(self.BACKOFF[min(attempt, len(self.BACKOFF) - 1)])
+
+        raise last_error or NetworkError("请求失败")
+
+
 def _make_session():
-    session = requests.Session()
-    session.headers.update({"Content-Type": "application/json"})
-    return session
+    return _Session()
+
+
+def _oneshot_post(url, json=None, timeout=60, retry=1):
+    """一次性 POST（不需要 cookie 的场景：账套列表、版本检查）。"""
+    return _Session().post(url, json=json, timeout=timeout, retry=retry)
 
 
 def probe_server(base_url, timeout=10):
@@ -306,12 +479,12 @@ def probe_server(base_url, timeout=10):
     if not url:
         return None, "未配置 base_url"
     try:
-        resp = requests.get(url, timeout=timeout, allow_redirects=False)
-    except requests.exceptions.SSLError as exc:
-        return None, f"SSL 握手失败：{exc}（地址可能是 http/https 写错，或证书不受信）"
-    except requests.exceptions.ConnectionError as exc:
+        resp = _Session().get(url, timeout=timeout, allow_redirects=False, retry=0)
+    except SSLHandshakeError as exc:
+        return None, f"{exc}（地址可能是 http/https 写错，或证书不受信；自建内网自签证书可设 KINGDEE_INSECURE_SSL=1）"
+    except NetworkError as exc:
         return None, f"连不上服务器：{exc}（检查地址、网络/VPN、防火墙）"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return None, f"请求异常：{exc}"
     if resp.status_code == 403 and not (resp.text or "").strip():
         return 403, "返回 403 且内容为空，通常是 URL 路径不对（漏了 /k3cloud/，或地址指向了网关/WAF）"
@@ -331,7 +504,7 @@ def fetch_datacenters(base_url, timeout=30):
         "Kingdee.BOS.ServiceFacade.ServicesStub.Account.AccountService."
         "GetDataCenterList.common.kdsvc"
     )
-    resp = requests.post(url, json={}, timeout=timeout)
+    resp = _oneshot_post(url, json={}, timeout=timeout)
     if resp.status_code != 200:
         raise RuntimeError(f"HTTP {resp.status_code}：{(resp.text or '')[:200]}")
 
@@ -407,7 +580,8 @@ def perform_login(session, base_url, acctid, username, password, timeout=30):
     )
     payload = {"acctid": acctid, "username": username, "password": password, "lcid": 2052}
     try:
-        resp = session.post(url, json=payload, timeout=timeout)
+        # 登录不重试：连错约 5 次会锁号，宁可把失败原样交回上层判读
+        resp = session.post(url, json=payload, timeout=timeout, retry=0)
     except Exception as exc:
         return False, {
             "stage": "网络",
@@ -637,6 +811,21 @@ def run_doctor():
     print(f"账号：{str(cfg.get('username') or '').strip() or '（未配置）'}")
     print()
 
+    # 0) 运行环境与依赖：openpyxl 缺失时，前面全通过、最后写 Excel 才炸，最难排查
+    print(f"[0/5] 运行环境 …… Python {sys.version.split()[0]}")
+    missing_modules = []
+    for module, purpose in (("pandas", "数据整理"), ("openpyxl", "写 Excel")):
+        try:
+            __import__(module)
+        except Exception:  # noqa: BLE001
+            missing_modules.append(f"{module}（{purpose}）")
+    if missing_modules:
+        print(f"      缺少依赖：{'、'.join(missing_modules)}")
+        print("      → python -m pip install -r requirements.txt")
+        print("      → 国内网络可加镜像：-i https://pypi.tuna.tsinghua.edu.cn/simple")
+        return 3
+    print("      依赖完整（pandas / openpyxl 就绪；HTTP 用标准库，无需 requests）")
+
     # 1) 配置完整性
     missing = get_missing_config_keys(cfg)
     if missing:
@@ -710,8 +899,83 @@ def run_doctor():
     print("=" * 64)
     print("结论：全部通过，可以正常取数。")
     print("下一步：python data_exporter.py --show-config   # 看可导出的单据与报表")
+    print(f"审计日志：{AUDIT_LOG_PATH}（只记时间/对象/行数，不记业务数据；KINGDEE_AUDIT=0 可关）")
     print("=" * 64)
     return 0
+
+
+def audit_log(action, **fields):
+    """追加一行审计记录到 `~/.workbuddy/kingdee/audit.log`（JSONL）。
+
+    只记元数据：时间、动作、对象、组织、行数、成功与否。
+    不记业务数据内容、不记凭据 —— 目的是事后能回答
+    「这批经营数据是什么时候、被哪个账号导走的」，而不是留存一份数据副本。
+    关掉：设环境变量 KINGDEE_AUDIT=0。
+    """
+    if str(os.environ.get("KINGDEE_AUDIT", "1")).strip().lower() in ("0", "false", "no", "off"):
+        return
+    try:
+        record = {
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "action": action,
+            "version": APP_VERSION,
+        }
+        for key, value in fields.items():
+            if value is None or value == "":
+                continue
+            record[key] = value
+        AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001 - 审计写失败绝不影响正常取数
+        pass
+
+
+def beautify_worksheet(ws, df, has_header=True):
+    """把导出的工作表整成「财务同事能直接看」的样子。
+
+    三件事：表头加粗 + 首行冻结 + 列宽按内容估算（中文按两列算）。
+    不做的后果很具体：金额列宽不够显示成满屏 ###，滚到第 50 行不知道自己在看哪一列。
+    """
+    if not has_header or ws is None or df is None:
+        return
+    try:
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except Exception:  # noqa: BLE001
+        return
+
+    # 只在 openpyxl 的常规工作表上做格式：写模式（write_only）工作表没有单元格坐标，
+    # 换引擎（xlsxwriter）时属性也不一样 —— 这种情况下宁可不美化，也不能把已经写好的数据搞坏。
+    if not hasattr(ws, "column_dimensions") or not hasattr(ws, "max_row"):
+        if os.getenv("KINGDEE_DEBUG"):
+            print(f"  [debug] 工作表类型不支持后置格式（{type(ws).__name__}），已跳过美化")
+        return
+
+    try:
+        if ws.max_row >= 2:
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill("solid", fgColor="EDEFF2")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.freeze_panes = "A2"
+            ws.auto_filter.ref = f"A1:{get_column_letter(ws.max_column)}{ws.max_row}"
+
+        sample = df.head(200)
+        for idx, column in enumerate(df.columns, start=1):
+            widest = _display_width(column)
+            for value in sample[column].tolist():
+                if value is None:
+                    continue
+                text = str(value)
+                if len(text) > 60:
+                    text = text[:60]
+                widest = max(widest, _display_width(text))
+                if widest >= 40:
+                    break
+            ws.column_dimensions[get_column_letter(idx)].width = min(max(widest + 2, 8), 42)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ! 工作表格式美化失败（数据不受影响）：{exc}")
 
 
 class SalesDataExporter:
@@ -735,7 +999,10 @@ class SalesDataExporter:
             print()
 
         self.only = self._normalize_only(only)
-        self.official_fields_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "官方字段说明")
+        skill_root = os.path.dirname(os.path.abspath(__file__))
+        self.field_docs_dir = os.path.join(skill_root, "field-docs")
+        self.legacy_fields_dir = os.path.join(skill_root, "官方字段说明")  # 2.3.x 及更早的布局，仅作兜底
+        self.official_fields_dir = self.field_docs_dir  # 兼容旧引用
         self.official_field_cache = {}
         self.requested_extra_fields = self._parse_extra_fields(extra_fields)
         self.requested_org_numbers = self._parse_org_numbers(org_numbers) if org_numbers else None
@@ -1187,36 +1454,64 @@ class SalesDataExporter:
     def _official_doc_name_for_config(self, config):
         return config.get("official_doc") or config.get("bill_name") or config.get("report_name")
 
-    def _load_official_fields(self, doc_name):
-        if not doc_name:
-            return {}
-        if doc_name in self.official_field_cache:
-            return self.official_field_cache[doc_name]
+    def _field_doc_candidates(self, config):
+        """字段说明文件的候选路径，按优先级排列。
 
-        path = os.path.join(self.official_fields_dir, f"{doc_name}.txt")
+        首选 `field-docs/<FormId>.txt`：文件名纯 ASCII，跨系统解压、拷盘、压缩包传递都不会变乱码。
+        旧布局（中文文件名）保留在候选末尾，仅为兼容 2.4.0 之前复制走的目录，不作为主路径。
+        """
+        candidates = []
+        form_id = str(config.get("form_id") or "").strip()
+        if form_id:
+            candidates.append(os.path.join(self.field_docs_dir, f"{form_id}.txt"))
+        doc_name = str(self._official_doc_name_for_config(config) or "").strip()
+        if doc_name:
+            candidates.append(os.path.join(self.field_docs_dir, f"{doc_name}.txt"))
+            candidates.append(os.path.join(self.legacy_fields_dir, f"{doc_name}.txt"))
+        return candidates
+
+    def _load_official_fields(self, config):
+        """读取某对象的「中文字段名 → 字段标识」对照表。
+
+        用途：让用户能用 `--fields 应收单:未开票金额` 这种中文写法追加字段，
+        而不是先查元数据再抄英文标识。
+        """
+        cache_key = str(config.get("form_id") or "") or str(self._official_doc_name_for_config(config) or "")
+        if not cache_key:
+            return {}
+        if cache_key in self.official_field_cache:
+            return self.official_field_cache[cache_key]
+
         fields = {}
-        if os.path.exists(path):
+        for path in self._field_doc_candidates(config):
+            if not os.path.exists(path):
+                continue
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
                     for line in f:
+                        if line.lstrip().startswith("#"):
+                            continue
                         match = re.search(r"\s*([^：:]+)[：:]\s*([A-Za-z_][A-Za-z0-9_.]*)", line)
                         if not match:
                             continue
                         name = match.group(1).strip()
                         key = match.group(2).strip()
                         if name and key:
-                            fields[name] = key
-                            fields[key.upper()] = key
-            except Exception as e:
-                print(f"  [WARN] 读取官方字段说明失败 {path}: {e}")
+                            # 同一中文名在表头与明细里可能重复（如「价税合计」），首次定义优先：
+                            # 取表头那个，避免被后面的明细字段静默覆盖。要明细字段直接写英文标识。
+                            fields.setdefault(name, key)
+                            fields.setdefault(key.upper(), key)
+            except Exception as e:  # noqa: BLE001
+                print(f"  [WARN] 读取字段说明失败 {path}: {e}")
+            if fields:
+                break
 
-        self.official_field_cache[doc_name] = fields
+        self.official_field_cache[cache_key] = fields
         return fields
 
     def _attach_official_fields_to_configs(self):
         for config in self.bill_configs + self.report_configs:
-            doc_name = self._official_doc_name_for_config(config)
-            config["official_fields"] = self._load_official_fields(doc_name)
+            config["official_fields"] = self._load_official_fields(config)
 
     def _append_extra_field_keys(self, config, field_keys):
         if not self.requested_extra_fields:
@@ -1542,6 +1837,8 @@ class SalesDataExporter:
 
         url = self.base_url + "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc"
 
+        last_error = ""
+        attempt_errors = []
         for form_id, field_keys in candidates:
             data = {
                 "formid": form_id,
@@ -1566,6 +1863,13 @@ class SalesDataExporter:
                 if not isinstance(result, list):
                     continue
 
+                # 服务端会把错误包成数据行返回，先捞出来留作失败时的判读依据
+                for row in result:
+                    if isinstance(row, dict) or (isinstance(row, list) and any(isinstance(x, dict) for x in row)):
+                        last_error = json.dumps(row, ensure_ascii=False)[:400]
+                        attempt_errors.append(last_error)
+                        break
+
                 rows = []
                 for row in result:
                     if not isinstance(row, list) or len(row) < 2:
@@ -1584,15 +1888,39 @@ class SalesDataExporter:
                     rows = list(dedup.values())
                     rows.sort(key=lambda x: x.get("number") or "")
                     return rows
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                last_error = str(exc)[:400]
+                attempt_errors.append(last_error)
                 continue
 
-        raise RuntimeError(
-            "查询组织列表失败：金蝶环境里的组织基础资料 FormId/字段可能与默认值不同。\n"
-            "  已尝试：ORG_Organizations / BD_Organization。\n"
-            "  可用 --inspect-fields ORG_Organizations 核对当前账套的实际字段；\n"
-            "  若该账套用别的业务对象存组织，请反馈你的 FormId 以便补充默认清单。"
-        )
+        # 失败时按真实原因分流：这几种情况的处理动作完全不同，混成一句会让用户白折腾。
+        # 注意「权限」优先于「对象不存在」—— 多个候选里，权限错的说明对象是对的，只是没权限。
+        permission_hit = next((e for e in attempt_errors if "权限" in e), "")
+        notfound_hit = next((e for e in attempt_errors if "不存在" in e or "不允许加载" in e), "")
+        if permission_hit:
+            reason = (
+                "账号缺少「组织机构」查看权限（这不是字段问题，也不是密码问题）。\n"
+                "  处理方式二选一：\n"
+                "   ① 让管理员在 系统管理 → 用户管理 → 权限 里给取数账号授予组织机构查看权限；\n"
+                "   ② 如果本来就知道要导哪个组织，直接用 --org <组织编码> 指定，绕开组织列表。\n"
+                f"  金蝶原文：{permission_hit}"
+            )
+        elif notfound_hit:
+            reason = (
+                "该账套的组织基础资料 FormId 与默认值不同。\n"
+                "  已尝试：ORG_Organizations / BD_Organization。\n"
+                "  用 --inspect-fields ORG_Organizations 核对当前账套的实际字段；\n"
+                "  若该账套用别的业务对象存组织，请反馈你的 FormId 以便补充默认清单。\n"
+                f"  金蝶原文：{notfound_hit}"
+            )
+        else:
+            reason = (
+                "查询组织列表失败，未能定位原因。\n"
+                "  已尝试：ORG_Organizations / BD_Organization。\n"
+                "  可以先跑 --doctor 确认连通与权限，再用 --inspect-fields ORG_Organizations 核对字段。\n"
+                f"  金蝶原文：{last_error or '（无返回内容）'}"
+            )
+        raise RuntimeError(reason)
 
     def get_bill_data_with_filter(self, form_id, field_keys, filter_string):
         """使用字段和过滤条件获取单据数据"""
@@ -2209,8 +2537,9 @@ class SalesDataExporter:
                     try:
                         ws = writer.sheets[sheet_name]
                         self._apply_excel_number_formats(sheet_name, df, ws)
+                        beautify_worksheet(ws, df, write_header)
                     except Exception as e:
-                        print(f"  ! sheet {sheet_name} 数值格式设置失败: {e}")
+                        print(f"  ! sheet {sheet_name} 格式设置失败: {e}")
 
             print(f"  Excel文件已生成: {filename}")
             return str(filename)
@@ -2389,7 +2718,19 @@ class SalesDataExporter:
 
             if not excel_file:
                 print("  Excel生成失败")
+                audit_log("export_failed", period=self.period_name, reason="excel_write_failed")
                 return False
+
+            orgs = self.target_settle_org_numbers or []
+            audit_log(
+                "export",
+                period=self.period_name,
+                orgs=("all" if len(orgs) > 5 else ",".join(orgs)),
+                org_count=len(orgs),
+                sheets=len(all_dataframes),
+                rows=sum(len(df) for df in all_dataframes.values()),
+                output=os.path.basename(str(excel_file)),
+            )
 
             print("\n生成的文件:")
             if os.path.exists(excel_file):
@@ -2403,6 +2744,7 @@ class SalesDataExporter:
 
         except Exception as e:
             print(f"导出任务异常：{e}")
+            audit_log("export_failed", period=self.period_name, reason=str(e).splitlines()[0][:160])
             hint = error_hint_for(str(e))
             if hint:
                 print(f"  → {hint}")
@@ -2425,20 +2767,49 @@ def _version_sort_key(version):
             key.append((0, int(part)))
         else:
             key.append((1, part.lower()))
+    # 补齐长度，避免「2.4」被判定为比「2.4.0」旧
+    while len(key) < 4 and all(item[0] == 0 for item in key):
+        key.append((0, 0))
     return key
 
 
-def is_newer_version(latest_version, current_version):
+def _as_date_tag(text):
+    """把「2026-09-16 / 2026.9.16 / 20260916」这类日期形态的 tag 解析成 date，否则返回 None。
+
+    历史 Release 用过日期做 tag，新版本改用语义版本号 —— 两种形态必须都能比，
+    否则一旦换了形态，更新提示会永久失效（这正是一次真实踩过的坑）。
+    """
+    raw = str(text or "").strip().lstrip("vV")
+    match = re.match(r"^(\d{4})[-._/]?(\d{1,2})[-._/]?(\d{1,2})$", raw)
+    if not match:
+        return None
+    try:
+        return datetime(int(match.group(1)), int(match.group(2)), int(match.group(3))).date()
+    except ValueError:
+        return None
+
+
+def is_newer_version(latest_version, current_version=APP_VERSION):
+    latest_date = _as_date_tag(latest_version)
+    current_date = _as_date_tag(current_version)
+    if latest_date or current_date:
+        # 两边形态不一致时，用构建日期作为本机版本的「日期等价物」对齐
+        latest_date = latest_date or _as_date_tag(BUILD_DATE)
+        current_date = current_date or _as_date_tag(BUILD_DATE)
+        if not latest_date or not current_date:
+            return False
+        return latest_date > current_date
     return _version_sort_key(latest_version) > _version_sort_key(current_version)
 
 
-def check_for_update(timeout=3):
+def check_for_update(timeout=4):
     """检查 GitHub 最新 Release。失败时静默返回 None，不影响导出。"""
     try:
-        response = requests.get(
+        response = _Session().get(
             RELEASES_API_URL,
             headers={"Accept": "application/vnd.github+json", "User-Agent": f"KingdeeDataExporter/{APP_VERSION}"},
             timeout=timeout,
+            retry=1,
         )
         if response.status_code != 200:
             return None
@@ -2522,22 +2893,9 @@ def export_generic_form(form_id, fields="", filter_string="", output_dir="."):
         print_config_guide("配置不完整：" + "、".join(missing))
         return 3
 
-    base_url = _normalize_base_url(KINGDEE_CONFIG.get("base_url"))
-    session = _make_session()
-    acctid = str(KINGDEE_CONFIG.get("acctid") or "").strip()
-    if not acctid:
-        acctid, note = resolve_acctid_by_name(base_url, KINGDEE_CONFIG.get("acct_name"))
-        if not acctid:
-            print(f"无法确定账套：{note}")
-            return 3
-    ok, info = perform_login(
-        session, base_url, acctid, KINGDEE_CONFIG.get("username"), KINGDEE_CONFIG.get("password")
-    )
-    if not ok:
-        print(f"登录失败：{info.get('message')}")
-        if info.get("hint"):
-            print(f"  → {info['hint']}")
-        return 3
+    session, base_url, err = open_session()
+    if err:
+        return err
 
     keys = [k.strip() for k in str(fields or "").split(",") if k.strip()]
     sheet = form_id
@@ -2578,23 +2936,32 @@ def export_generic_form(form_id, fields="", filter_string="", output_dir="."):
     safe_name = re.sub(r'[\\/:*?"<>|]', "_", str(sheet))[:60]
     path = out_dir / f"{safe_name}_{form_id}_{ts}.xlsx"
     try:
-        with pd.ExcelWriter(path) as writer:
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
             df.to_excel(writer, sheet_name="数据", index=False)
+            beautify_worksheet(writer.sheets["数据"], df, True)
     except Exception as exc:
         print(f"写入 Excel 失败：{exc}")
+        audit_log("export_form_failed", form=form_id, reason=str(exc)[:200])
         return 3
+
+    audit_log("export_form", form=form_id, rows=len(df), output=path.name)
 
     print(f"\n共 {len(df)} 行")
     print(f"已导出：{path}")
     return 0
 
 
-def inspect_fields_command(form_id, keyword="", json_out=""):
-    """`--inspect-fields` 的实现：登录 → QueryBusinessInfo → 打印字段清单。"""
+def open_session():
+    """建立已登录会话。返回 (session, base_url, 错误码)，成功时错误码为 None。
+
+    抽出来的原因：`--form-id`、`--inspect-fields` 和对象探查都需要同一段登录逻辑，
+    复制三遍以后每加一个功能就要再抄一次，改一处漏三处。
+    """
     missing = get_missing_config_keys(KINGDEE_CONFIG)
     if missing:
         print_config_guide("配置不完整：" + "、".join(missing))
-        return 3
+        return None, None, 3
+
     base_url = _normalize_base_url(KINGDEE_CONFIG.get("base_url"))
     session = _make_session()
     acctid = str(KINGDEE_CONFIG.get("acctid") or "").strip()
@@ -2602,7 +2969,8 @@ def inspect_fields_command(form_id, keyword="", json_out=""):
         acctid, note = resolve_acctid_by_name(base_url, KINGDEE_CONFIG.get("acct_name"))
         if not acctid:
             print(f"无法确定账套：{note}")
-            return 3
+            return None, None, 3
+
     ok, info = perform_login(
         session, base_url, acctid, KINGDEE_CONFIG.get("username"), KINGDEE_CONFIG.get("password")
     )
@@ -2610,13 +2978,289 @@ def inspect_fields_command(form_id, keyword="", json_out=""):
         print(f"登录失败：{info.get('message')}")
         if info.get("hint"):
             print(f"  → {info['hint']}")
+        audit_log("login_failed", stage=info.get("stage"), code=info.get("code"))
+        return None, None, 3
+    return session, base_url, None
+
+
+# ────────────────────── 对象探查：不知道 FormId 时先查清单 ──────────────────────
+
+SUBSYSTEM_REGISTRY = "BOS_SubSystem"
+OBJECT_REGISTRY = "BOS_ObjectType"
+
+
+def _display_width(text):
+    """字符串的终端显示宽度（中文按 2 列算），用于对齐打印。"""
+    width = 0
+    for ch in str(text or ""):
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+def _pad(text, width):
+    text = str(text or "")
+    return text + " " * max(0, width - _display_width(text))
+
+
+def _print_table(headers, rows):
+    """等宽打印表格（中文按两列算宽），用于对象清单这类人工阅读的输出。"""
+    widths = [_display_width(h) for h in headers]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            if idx < len(widths):
+                widths[idx] = max(widths[idx], _display_width(cell))
+    header_line = "  ".join(_pad(h, widths[i]) for i, h in enumerate(headers)).rstrip()
+    print(header_line)
+    print("-" * min(_display_width(header_line), 100))
+    for row in rows:
+        print("  ".join(_pad(c, widths[i]) for i, c in enumerate(row)).rstrip())
+
+
+def _registry_rows(session, base_url, form_id, field_sets):
+    """读注册表对象，字段集逐个降级尝试。
+
+    不同版本/补丁级别的账套，注册表里可用字段并不完全一致（例如有的版本没有 FNumber），
+    硬写一套字段会让整个功能在部分环境直接不可用。
+    """
+    last_error = None
+    for fields in field_sets:
+        try:
+            rows = _query_all_pages(session, base_url, form_id, fields)
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            continue
+        keys = fields.split(",")
+        items = []
+        for row in rows:
+            if not isinstance(row, list) or not row:
+                continue
+            items.append(dict(zip(keys, row)))
+        return items
+    raise RuntimeError(last_error or "读取注册表失败")
+
+
+def fetch_subsystems(session, base_url):
+    """子系统清单（模块）：[{id, name, number}]，number 形如 GL / AR / STK。"""
+    rows = _registry_rows(session, base_url, SUBSYSTEM_REGISTRY, ("FID,FName,FNumber", "FID,FName"))
+    result = []
+    for item in rows:
+        result.append({
+            "id": str(item.get("FID") or "").strip(),
+            "name": _meta_name(item.get("FName")).strip(),
+            "number": str(item.get("FNumber") or "").strip(),
+        })
+    result.sort(key=lambda x: (x["number"] or "~", x["name"]))
+    return result
+
+
+def fetch_objects(session, base_url):
+    """业务对象清单：[{formid, name, subsystem_id}]。"""
+    rows = _registry_rows(session, base_url, OBJECT_REGISTRY, ("FID,FName,FSubSystemId", "FID,FName"))
+    result = []
+    for item in rows:
+        form_id = str(item.get("FID") or "").strip()
+        if not form_id:
+            continue
+        result.append({
+            "formid": form_id,
+            "name": _meta_name(item.get("FName")).strip(),
+            "subsystem_id": str(item.get("FSubSystemId") or "").strip(),
+        })
+    result.sort(key=lambda x: x["formid"])
+    return result
+
+
+def _match_subsystem(subsystems, keyword):
+    """按编号或名称匹配子系统。编号精确 > 编号前缀 > 名称包含，逐级放宽。"""
+    key = str(keyword or "").strip().upper()
+    if not key:
+        return [], []
+    exact = [s for s in subsystems if (s["number"] or "").upper() == key]
+    if exact:
+        return exact, []
+    prefix = [s for s in subsystems if (s["number"] or "").upper().startswith(key)]
+    if prefix:
+        return prefix, []
+    fuzzy = [s for s in subsystems if key in (s["name"] or "").upper() or key in (s["number"] or "").upper()]
+    return fuzzy, []
+
+
+def list_subsystems_command(json_out=""):
+    """`--list-subsystems`：先看有哪些模块，再用 --object-sub 钻进去。"""
+    session, base_url, err = open_session()
+    if err:
+        return err
+    try:
+        subsystems = fetch_subsystems(session, base_url)
+        objects = fetch_objects(session, base_url)
+    except Exception as exc:  # noqa: BLE001
+        print(f"查询失败：{exc}")
+        print("  → 注册表属于元数据，需账号具备元数据读取权限；若报权限类错误，请让管理员放行。")
         return 3
+
+    counter = {}
+    for obj in objects:
+        counter[obj["subsystem_id"]] = counter.get(obj["subsystem_id"], 0) + 1
+
+    print(f"\n共 {len(subsystems)} 个子系统（对象数 = 该模块下已注册的业务对象数量）")
+    _print_table(
+        ["编号", "名称", "对象数"],
+        [[item["number"] or "-", item["name"] or "-", counter.get(item["id"], 0)] for item in subsystems],
+    )
+    print("下一步：--list-objects --object-sub <编号>   看该模块下的业务对象与 FormId")
+
+    if json_out:
+        try:
+            Path(json_out).expanduser().write_text(
+                json.dumps({"subsystems": subsystems}, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(f"清单已保存：{json_out}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] 保存 JSON 失败：{exc}")
+    return 0
+
+
+def list_objects_command(sub_keyword="", name_keyword="", json_out="", limit=200):
+    """`--list-objects`：列出业务对象与 FormId，供 --form-id / --inspect-fields 使用。
+
+    ⚠️ 必须按**子系统**筛，不要按 FormId 前缀猜：
+    动态建模（BOS 设计器）生成的对象，FormId 是纯数字码或 GUID，不带任何模块前缀，
+    按前缀过滤会漏掉其中很大一部分，用户会以为"查不到就是没有"。
+    """
+    session, base_url, err = open_session()
+    if err:
+        return err
+    try:
+        subsystems = fetch_subsystems(session, base_url)
+        objects = fetch_objects(session, base_url)
+    except Exception as exc:  # noqa: BLE001
+        print(f"查询失败：{exc}")
+        print("  → 注册表属于元数据，需账号具备元数据读取权限；若报权限类错误，请让管理员放行。")
+        return 3
+
+    name_of = {s["id"]: (s["name"] or s["number"]) for s in subsystems}
+    scope = ""
+    if sub_keyword:
+        hits, _ = _match_subsystem(subsystems, sub_keyword)
+        if not hits:
+            print(f"找不到子系统「{sub_keyword}」。先跑 --list-subsystems 看可用编号。")
+            return 3
+        allowed = {s["id"] for s in hits}
+        objects = [o for o in objects if o["subsystem_id"] in allowed]
+        scope = "、".join(f"{s['number'] or s['name']}" for s in hits)
+    if name_keyword:
+        needle = str(name_keyword).strip().lower()
+        objects = [o for o in objects if needle in o["formid"].lower() or needle in o["name"].lower()]
+
+    total = len(objects)
+    shown = objects[:limit]
+
+    title = "业务对象清单"
+    if scope:
+        title += f"（子系统：{scope}）"
+    if name_keyword:
+        title += f"（关键字：{name_keyword}）"
+    print(f"\n{title}：命中 {total} 个")
+    _print_table(
+        ["FormId", "中文名", "子系统"],
+        [[obj["formid"], obj["name"] or "-", name_of.get(obj["subsystem_id"], "-")] for obj in shown],
+    )
+    if total > len(shown):
+        print(f"仅显示前 {len(shown)} 个（共 {total} 个）。用 --object-kw 收窄，或用 --json-out 存全量。")
+    print("下一步：python data_exporter.py --test-form <FormId>      体检能否取数")
+    print("       python data_exporter.py --inspect-fields <FormId>  核对字段")
+    print("       python data_exporter.py --form-id <FormId>         直接取数")
+
+    if json_out:
+        payload = {
+            "scope": scope or "*",
+            "keyword": name_keyword,
+            "count": total,
+            "objects": [
+                {
+                    "formid": o["formid"],
+                    "name": o["name"],
+                    "subsystem": name_of.get(o["subsystem_id"], ""),
+                }
+                for o in objects
+            ],
+        }
+        try:
+            Path(json_out).expanduser().write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(f"清单已保存：{json_out}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] 保存 JSON 失败：{exc}")
+    return 0
+
+
+def inspect_fields_command(form_id, keyword="", json_out=""):
+    """`--inspect-fields` 的实现：登录 → QueryBusinessInfo → 打印字段清单。"""
+    session, base_url, err = open_session()
+    if err:
+        return err
     try:
         meta = fetch_business_info(session, base_url, form_id)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"查询失败：{exc}")
+        print("  → 不确定 FormId 时先跑：python data_exporter.py --list-objects --object-kw <关键字>")
         return 3
     print_business_info(meta, keyword, json_out)
+    return 0
+
+
+def test_form_command(form_id):
+    """`--test-form`：体检单个对象「元数据能不能读、取数能不能通」。
+
+    为什么需要它：业务对象在注册表里「有」不等于「能取数」。
+    动态建模对象、未购买许可的子系统、禁止 WebAPI 查询的对象，元数据可能读得到，
+    但 ExecuteBillQuery 会拒绝 —— 直接去导数据的话，用户看到的只是一句报错。
+    """
+    session, base_url, err = open_session()
+    if err:
+        return err
+
+    print(f"体检对象：{form_id}")
+    entries = []
+    try:
+        meta = fetch_business_info(session, base_url, form_id)
+        entries = [e for e in (meta.get("Entrys") or []) if isinstance(e, dict)]
+        field_count = sum(len(e.get("Fields") or []) for e in entries)
+        print(f"  元数据：OK（{len(entries)} 个实体 / {field_count} 个字段；中文名：{_meta_name(meta.get('Name')) or '-'}）")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  元数据：失败 — {exc}")
+        print("  → 三种常见原因：")
+        print("     ① FormId 拼写/大小写不符（金蝶标识区分大小写）")
+        print("     ② 该对象不是表单类对象（如单据转换规则、迁移方案、报表方案），不支持按对象取数")
+        print("     ③ 账号无元数据读取权限")
+        print("  → 先核对名称：python data_exporter.py --list-objects --object-kw <关键字>")
+        return 3
+
+    keys = []
+    for entry in entries:
+        for field in entry.get("Fields") or []:
+            key = str(field.get("Key") or "").strip()
+            if key and key not in keys:
+                keys.append(key)
+        if len(keys) >= 3:
+            break
+    if not keys:
+        print("  取数：跳过（该对象没有可用字段）")
+        return 3
+
+    try:
+        rows = query_rows_once(session, base_url, form_id, ",".join(keys[:3]), limit=1)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  取数：失败 — {exc}")
+        print("  → 元数据能读但取数不通，常见三类原因：")
+        print("     ① 账号未加入 WebAPI 白名单（见 --doctor 提示）")
+        print("     ② 该子系统的许可未购买 / SubSystemId 未授权")
+        print("     ③ 该对象本身不允许 WebAPI 查询（多见于动态建模生成的界面类对象）")
+        return 3
+
+    print(f"  取数：OK（样例 {len(rows)} 行）")
+    print(f"  可以这样取数：python data_exporter.py --form-id {form_id}")
     return 0
 
 
@@ -2644,7 +3288,26 @@ def main():
         help="列出某业务对象的实体与字段全清单（核对字段、排障用），如 --inspect-fields ER_ExpReimbursement",
     )
     parser.add_argument("--filter", dest="filter_keyword", default="", help="配合 --inspect-fields，按关键字过滤字段")
-    parser.add_argument("--json-out", default="", help="配合 --inspect-fields，把完整元数据保存为 JSON 文件")
+    parser.add_argument("--json-out", default="", help="配合 --inspect-fields / --list-objects，把清单保存为 JSON 文件")
+    parser.add_argument(
+        "--list-subsystems", action="store_true",
+        help="列出账套内的子系统（模块）编号，作为 --object-sub 的取值",
+    )
+    parser.add_argument(
+        "--list-objects", action="store_true",
+        help="列出业务对象及 FormId（不知道 FormId 时先用它查，再配合 --form-id 取数）",
+    )
+    parser.add_argument("--object-sub", default="", help="配合 --list-objects，按子系统编号过滤，如 GL / AR / STK")
+    parser.add_argument("--object-kw", default="", help="配合 --list-objects，按中文名或 FormId 关键字搜索")
+    parser.add_argument(
+        "--test-form", metavar="FORM_ID", default="",
+        help="体检某个对象：元数据能否读取、取数是否通（用于 --form-id 之前确认对象可用）",
+    )
+    parser.add_argument(
+        "--version", action="version",
+        version=f"%(prog)s {APP_VERSION}（构建日期 {BUILD_DATE}）",
+        help="显示版本号后退出",
+    )
     parser.add_argument(
         "--form-id", dest="form_id", default="",
         help="通用取数：导出任意业务对象（不限于内置清单），如 GL_Voucher / FA_Card / STK_Inventory",
@@ -2665,6 +3328,15 @@ def main():
 
     if args.list_datacenters:
         sys.exit(print_datacenters(KINGDEE_CONFIG.get("base_url")))
+
+    if args.list_subsystems:
+        sys.exit(list_subsystems_command(args.json_out))
+
+    if args.list_objects:
+        sys.exit(list_objects_command(args.object_sub, args.object_kw, args.json_out))
+
+    if args.test_form:
+        sys.exit(test_form_command(args.test_form))
 
     if args.inspect_fields:
         sys.exit(inspect_fields_command(args.inspect_fields, args.filter_keyword, args.json_out))
@@ -2701,7 +3373,11 @@ def main():
         return
 
     if args.list_orgs:
-        orgs = exporter.get_all_organizations()
+        try:
+            orgs = exporter.get_all_organizations()
+        except Exception as exc:  # noqa: BLE001
+            print(f"无法读取组织列表：{exc}")
+            sys.exit(1)
         try:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             exporter.output_dir.mkdir(parents=True, exist_ok=True)

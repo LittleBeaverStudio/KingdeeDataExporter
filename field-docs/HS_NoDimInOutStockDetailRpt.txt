@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 存货收发存明细表 (HS_NoDimInOutStockDetailRpt)
 # 格式：中文字段名: 字段Key
 库存组织: FSTOCKORGID
 仓库: FSTOCKID

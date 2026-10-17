@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 存货收发存汇总表 (HS_INOUTSTOCKSUMMARYRPT)
 # 格式：中文字段名: 字段Key
 核算体系编码: FACCTGSYSTEMID
 核算体系名称: FACCTGSYSTEMNAME

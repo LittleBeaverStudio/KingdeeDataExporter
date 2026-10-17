@@ -1,4 +1,5 @@
 # 金蝶云星空只读字段映射
+# 对象: 出差申请单 (ER_ExpenseRequest_Travel)
 # 格式：中文字段名: 字段Key
 单据头: FBillHead
 实体主键: FID
@@ -61,6 +62,8 @@
 银行账号携带: FBringAccount
 可用借款余额: FAvailableLoanAmount
 报销接手人: FReimbReceiver
+同行人员: FAccompany
+使用差旅标准: FUseReimStd
 明细信息: FEntity
 实体主键: FEntryID
 费用项目: FExpenseItemID
@@ -87,6 +90,18 @@
 行关闭状态: FENTRYCLOSE
 项目: F_TJKT_Base_qtr
 特殊备注: F_TJKT_Text_qtr
+开始日期: FTravelStartDate
+结束日期: FTravelEndDate
+出发地: FTravelStartSite
+目的地: FTravelEndSite
+机票/火车票: FAirTicketCost
+其他长途交通费: FOtherRemoteCost
+市内交通费: FLocalCost
+住宿费: FAccomFee
+其他费用: FOtherExpense
+出差补助: FTravelSubsidy
+出发地（费控）: FDepartureID
+目的地（费控）: FArrivalID
 关联关系表: FEntity_Link
 实体主键: FLinkId
 业务流程图: FEntity_Link_FFlowId
