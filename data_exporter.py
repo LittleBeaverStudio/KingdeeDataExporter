@@ -34,7 +34,7 @@ except ModuleNotFoundError:
 _JSON = json  # HTTP 层里形参会占用 json 这个名字，用一个别名避免遮蔽
 
 
-APP_VERSION = "2.4.2"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
+APP_VERSION = "2.4.3"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
 BUILD_DATE = "2026-10-19"      # 用于和「日期形态」的 Release tag 比较
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
@@ -329,7 +329,7 @@ def _resolve_period(period_str):
     if s in ("this-quarter", "本季"):
         q = (today.month - 1) // 3 + 1
         first = datetime(today.year, (q - 1) * 3 + 1, 1)
-        last = datetime(today.year, q * 3 + 1, 1) - timedelta(days=1)
+        last = (datetime(today.year + 1, 1, 1) - timedelta(days=1)) if q == 4 else (datetime(today.year, q * 3 + 1, 1) - timedelta(days=1))
         return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{today.year}年第{q}季度(本季)")
     if s in ("last-year", "去年"):
         return (f"{today.year - 1}-01-01", f"{today.year - 1}-12-31", f"{today.year - 1}年(去年)")
