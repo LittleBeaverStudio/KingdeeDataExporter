@@ -162,6 +162,30 @@ python data_exporter.py --org all --only 应收单
 
 > ⚠️ 全组织数据可能很多，建议同时使用 `--only` 缩小范围。
 
+## 💾 可复用查询模板
+
+财务每月结账的取数条件（组织、期间、单据类型）几乎不变，把这套组合存成命名模板，下个月直接调，不用每个月重新说一遍参数。模板只存「取什么 / 给谁」，**不存凭据**。
+
+```bash
+# 保存当前参数组合为模板（period 用相对期间，模板才能长期有效）
+python data_exporter.py --only SAL_OUTSTOCK --org 101 --period last-month --output-dir D:/月结 --save-query 月结销售出库
+
+# 下个月直接调用，期间自动往前滚一个月
+python data_exporter.py --query 月结销售出库
+
+# 查看已保存的模板
+python data_exporter.py --list-queries
+```
+
+- `--period` 支持：`last-month` / `this-month` / `last-quarter` / `this-quarter` / `last-year` / `this-year` / `YYYY-MM`（该月整月）。**务必用相对期间**，固定日期的模板第二个月就失效。
+- 模板文件在 `~/.workbuddy/kingdee/queries.json`，可手改、可进 git 与同事共享。
+- 还没填凭据、想先看「这个对象会导出哪些列」？用 `--preview-fields`（读本地字段说明，不联网）：
+
+```bash
+python data_exporter.py --preview-fields SAL_OUTSTOCK        # 按 FormId
+python data_exporter.py --preview-fields 销售出库单           # 或按中文名
+```
+
 ## 🧩 追加默认字段
 
 `field-docs/` 保存了各类单据和报表的字段参考（每个对象一个文件，按 FormId 命名，如 `AR_receivable.txt`）。需要临时增加默认未导出的字段时，使用 `--fields`：

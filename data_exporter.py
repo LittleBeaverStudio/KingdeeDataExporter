@@ -34,8 +34,8 @@ except ModuleNotFoundError:
 _JSON = json  # HTTP 层里形参会占用 json 这个名字，用一个别名避免遮蔽
 
 
-APP_VERSION = "2.4.1"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
-BUILD_DATE = "2026-10-17"      # 用于和「日期形态」的 Release tag 比较
+APP_VERSION = "2.4.2"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
+BUILD_DATE = "2026-10-19"      # 用于和「日期形态」的 Release tag 比较
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 
@@ -225,6 +225,177 @@ def load_kingdee_config():
 
 
 KINGDEE_CONFIG = load_kingdee_config()
+
+
+# ────────────────────────── 查询模板（可复用取数组合） ──────────────────────────
+# 把「组织 + 期间 + 单据类型 + 字段」这套每月重复的配置存成命名模板，
+# 避免每个月重新复述参数，也方便自动化脚本长期稳定调用。
+# 模板只存「取什么 / 给谁」，不存真实凭据；凭据仍来自 config.json / 加密凭据。
+QUERIES_PATH = Path.home() / ".workbuddy" / "kingdee" / "queries.json"
+
+
+def _load_queries():
+    """读取 ~/.workbuddy/kingdee/queries.json；不存在/损坏返回 {}。"""
+    if not QUERIES_PATH.is_file():
+        return {}
+    try:
+        data = json.loads(QUERIES_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[WARN] 无法解析查询模板 {QUERIES_PATH}：{exc}")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_query(name, params):
+    data = _load_queries()
+    data[name] = params
+    QUERIES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    QUERIES_PATH.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"已保存查询模板：{name}  →  {QUERIES_PATH}")
+
+
+def _list_queries():
+    data = _load_queries()
+    if not data:
+        print("（暂无查询模板。用 --save-query <名字> 把当前参数组合存下来。）")
+        return
+    print("已有查询模板（用 --query <名字> 调用）：")
+    for name, v in data.items():
+        if not isinstance(v, dict):
+            print(f"  · {name}")
+            continue
+        bits = []
+        if v.get("only"):
+            only_v = v["only"]
+            bits.append("only=" + (",".join(only_v) if isinstance(only_v, list) else str(only_v)))
+        if v.get("form_id"):
+            bits.append("form_id=" + str(v["form_id"]))
+        if v.get("org"):
+            bits.append("org=" + str(v["org"]))
+        if v.get("period"):
+            bits.append("period=" + str(v["period"]))
+        elif v.get("start"):
+            bits.append(f"{v.get('start')}~{v.get('end')}")
+        print(f"  · {name}   {'  '.join(bits) if bits else '(空)'}")
+
+
+def _resolve_period(period_str):
+    """相对期间表达式 → (start, end, name)。
+
+    支持: last-month/上月、this-month/本月、last-quarter/上季、this-quarter/本季、
+          last-year/去年、this-year/今年、YYYY-MM(该月整月)、
+          YYYY-MM-DD~YYYY-MM-DD(固定区间)。无法识别返回 None。
+    模板里务必用相对表达式，否则存的固定日期第二个月就失效。
+    """
+    if not period_str:
+        return None
+    s = str(period_str).strip().lower()
+    today = datetime.now()
+
+    if "~" in s:
+        a, b = (x.strip() for x in s.split("~", 1))
+        if re.match(r"\d{4}-\d{2}-\d{2}$", a) and re.match(r"\d{4}-\d{2}-\d{2}$", b):
+            return (a, b, f"{a} 至 {b}")
+
+    m = re.match(r"^(\d{4})-(\d{2})$", s)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+        first = datetime(y, mo, 1)
+        last = (datetime(y, mo + 1, 1) - timedelta(days=1)) if mo < 12 else (datetime(y + 1, 1, 1) - timedelta(days=1))
+        return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{y}年{mo}月")
+
+    def month_bounds(y, mo):
+        first = datetime(y, mo, 1)
+        last = (datetime(y, mo + 1, 1) - timedelta(days=1)) if mo < 12 else (datetime(y + 1, 1, 1) - timedelta(days=1))
+        return first, last
+
+    if s in ("last-month", "上月"):
+        first, last = month_bounds(*((today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)))
+        return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{first.strftime('%Y年%m月')}(上月)")
+    if s in ("this-month", "本月"):
+        first, last = month_bounds(today.year, today.month)
+        return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{today.strftime('%Y年%m月')}(本月)")
+    if s in ("last-quarter", "上季"):
+        q = (today.month - 1) // 3
+        if q == 0:
+            y, q = today.year - 1, 4
+        else:
+            y = today.year
+        first = datetime(y, (q - 1) * 3 + 1, 1)
+        last = datetime(y, q * 3 + 1, 1) - timedelta(days=1)
+        return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{y}年第{q}季度(上季)")
+    if s in ("this-quarter", "本季"):
+        q = (today.month - 1) // 3 + 1
+        first = datetime(today.year, (q - 1) * 3 + 1, 1)
+        last = datetime(today.year, q * 3 + 1, 1) - timedelta(days=1)
+        return (first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d"), f"{today.year}年第{q}季度(本季)")
+    if s in ("last-year", "去年"):
+        return (f"{today.year - 1}-01-01", f"{today.year - 1}-12-31", f"{today.year - 1}年(去年)")
+    if s in ("this-year", "今年"):
+        return (f"{today.year}-01-01", f"{today.year}-12-31", f"{today.year}年(今年)")
+    return None
+
+
+def preview_fields_command(target):
+    """`--preview-fields`：不联网，读本地 field-docs/*.txt 打印字段清单。
+
+    用途：在填写金蝶凭据之前，就能看清「这个对象会导出哪些列」，判断够不够用。
+    与 --inspect-fields（联网查真实账套元数据）互补：一个离线看标准结构，一个联机看真实字段。
+    """
+    skill_root = os.path.dirname(os.path.abspath(__file__))
+    docs_dir = os.path.join(skill_root, "field-docs")
+    if not os.path.isdir(docs_dir):
+        print("未找到本地字段说明目录 field-docs/")
+        return 3
+
+    form_id = target
+    path = os.path.join(docs_dir, f"{target}.txt")
+    if not os.path.exists(path):
+        # 尝试按中文名匹配：遍历文件头「# 对象: 中文名 (FORMID)」
+        matched = None
+        for fn in os.listdir(docs_dir):
+            if not fn.endswith(".txt"):
+                continue
+            try:
+                with open(os.path.join(docs_dir, fn), "r", encoding="utf-8", errors="replace") as f:
+                    head = f.read(500)
+            except Exception:
+                continue
+            mm = re.search(r"# 对象:\s*(.+?)\s*\(([A-Za-z0-9_]+)\)", head)
+            if mm and target in (mm.group(1).strip(), mm.group(2).strip()):
+                matched = fn
+                break
+        if matched:
+            path = os.path.join(docs_dir, matched)
+            fm = re.search(r"\(([A-Za-z0-9_]+)\)", matched)
+            form_id = fm.group(1) if fm else matched[:-4]
+        else:
+            print(f"未找到对象「{target}」的本地字段说明。可用对象见：python data_exporter.py --show-config")
+            return 3
+
+    print(f"对象字段预览（本地 field-docs，无需连接金蝶）：{form_id}")
+    print("-" * 64)
+    shown = 0
+    skip_names = {"基本信息", "实体主键", "实体"}
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            st = line.strip()
+            if st.startswith("#") or not st:
+                continue
+            mt = re.search(r"([^：:]+)[：:]\s*([A-Za-z_][A-Za-z0-9_.]*)", st)
+            if not mt:
+                continue
+            name, key = mt.group(1).strip(), mt.group(2).strip()
+            if name in skip_names or key == "FBillHead":
+                continue
+            print(f"  {name:<22} {key}")
+            shown += 1
+    print("-" * 64)
+    print(f"共 {shown} 个字段（这是金蝶标准产品的字段映射；你账套的实际字段可能略有差异，")
+    print("连接后用 --inspect-fields 核对真实账套的元数据。）")
+    return 0
 
 # ────────────────────────── 错误判读表 ──────────────────────────
 # 同一句"登录失败"背后的原因完全不同：白名单没配 ≠ 密码错 ≠ 账套 ID 错。
@@ -3317,6 +3488,26 @@ def main():
         help="配合 --form-id，直接传金蝶 FilterString，如 \"FDate>='2026-01-01'\"",
     )
     parser.add_argument("--help-config", action="store_true", help="打印配置方法后退出")
+    parser.add_argument(
+        "--query", dest="query", default="",
+        help="调用已保存的查询模板（配合 --save-query 使用），如 --query 月结销售出库"
+    )
+    parser.add_argument(
+        "--save-query", dest="save_query", default="",
+        help="把本次参数组合（组织/期间/单据/字段）存为命名模板，如 --save-query 月结销售出库"
+    )
+    parser.add_argument(
+        "--list-queries", action="store_true",
+        help="列出已保存的查询模板后退出"
+    )
+    parser.add_argument(
+        "--period", dest="period", default="",
+        help="相对期间（模板里优先用这个而非固定日期）：last-month/this-month/last-quarter/this-quarter/last-year/this-year/YYYY-MM"
+    )
+    parser.add_argument(
+        "--preview-fields", dest="preview_fields", default="",
+        help="不联网预览某对象的本地字段清单（填凭据前即可看），如 --preview-fields SAL_OUTSTOCK 或 --preview-fields 销售出库单"
+    )
     args = parser.parse_args()
 
     if args.help_config:
@@ -3338,12 +3529,82 @@ def main():
     if args.test_form:
         sys.exit(test_form_command(args.test_form))
 
+    # ── 不联网预览字段：无配置也能用，放在最前 ──
+    if args.preview_fields:
+        sys.exit(preview_fields_command(args.preview_fields))
+
+    # ── 查询模板：列出 / 加载 / 保存 ──
+    if args.list_queries:
+        _list_queries()
+        return
+
+    query_params = {}
+    if args.query:
+        all_q = _load_queries()
+        if args.query not in all_q:
+            print(f"未找到查询模板「{args.query}」。已有：{', '.join(all_q) or '（无）'}")
+            print("  列出模板：python data_exporter.py --list-queries")
+            sys.exit(1)
+        query_params = dict(all_q[args.query])
+        print(f"已加载查询模板：{args.query}")
+
+    if args.save_query:
+        saved = {}
+        if args.org:
+            saved["org"] = args.org
+        if args.only:
+            saved["only"] = [x.strip() for x in str(args.only).split(",") if x.strip()]
+        if args.form_id:
+            saved["form_id"] = args.form_id
+        if args.extra_fields:
+            saved["fields"] = args.extra_fields
+        if args.filter_string:
+            saved["filter_string"] = args.filter_string
+        if args.output_dir and args.output_dir != ".":
+            saved["output_dir"] = args.output_dir
+        if args.period:
+            saved["period"] = args.period
+        elif args.start and args.end:
+            saved["start"] = args.start
+            saved["end"] = args.end
+            print("[提示] 你存的是固定日期，模板第二个月会失效；建议改用 --period last-month 让模板长期有效。")
+        _save_query(args.save_query, saved)
+        return
+
+    # ── period 展开 + 模板参数回填（命令行显式值优先）──
+    resolved = None
+    period_str = args.period or query_params.get("period")
+    if period_str:
+        resolved = _resolve_period(period_str)
+        if not resolved:
+            print(f"[WARN] 无法识别的 --period 值：{period_str}"
+                  f"（支持 last-month/this-month/last-quarter/this-quarter/last-year/this-year/YYYY-MM）")
+        elif query_params.get("period") and not args.period:
+            print(f"  期间：{resolved[2]}（来自模板 period={query_params['period']}）")
+        if resolved:
+            # 主流程模式（SalesDataExporter）依赖 start/end，必须写回
+            args.start, args.end = resolved[0], resolved[1]
+    args.start = args.start or query_params.get("start")
+    args.end = args.end or query_params.get("end")
+    args.org = args.org or query_params.get("org")
+    if not args.only and query_params.get("only"):
+        only_v = query_params["only"]
+        args.only = ",".join(only_v) if isinstance(only_v, list) else str(only_v)
+    args.form_id = args.form_id or query_params.get("form_id", "")
+    args.extra_fields = args.extra_fields or query_params.get("fields")
+    args.filter_string = args.filter_string or query_params.get("filter_string", "")
+    args.output_dir = args.output_dir or query_params.get("output_dir", ".")
+
     if args.inspect_fields:
         sys.exit(inspect_fields_command(args.inspect_fields, args.filter_keyword, args.json_out))
 
     if args.form_id:
+        fs = args.filter_string or ""
+        if resolved:
+            fdate = f"FDate>='{resolved[0]}' AND FDate<='{resolved[1]}'"
+            fs = fdate if not fs else f"{fs} AND {fdate}"
         sys.exit(export_generic_form(
-            args.form_id, args.extra_fields or "", args.filter_string or "", args.output_dir
+            args.form_id, args.extra_fields or "", fs, args.output_dir
         ))
 
     if args.check_update:

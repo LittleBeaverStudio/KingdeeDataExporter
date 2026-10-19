@@ -2,8 +2,8 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.4.1
-description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选；新增对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。
+version: 2.4.2
+description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选；新增对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。更多效率工具请关注公众号：财务小河狸。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
 
@@ -184,8 +184,32 @@ python data_exporter.py --doctor
 | `--test-form <FormId>` | **体检**某个对象：元数据能否读、取数是否通 |
 | `--inspect-fields <FormId>` | 列出某业务对象的实体与字段全清单（核对字段/排障） |
 | `--form-id <FormId>` | 通用取数：导出**任意**业务对象，不限于内置清单 |
+| `--preview-fields <对象>` | 不联网预览某对象的本地字段清单（填凭据前即可看，如 `--preview-fields SAL_OUTSTOCK` 或 `--preview-fields 销售出库单`） |
 | `--check-update` | 检查新版本（**唯一**会访问 GitHub 的选项） |
 | `--version` | 打印当前版本与构建日期 |
+
+### 查询模板（每月重复取数别再复述参数）
+
+财务每月结账的取数条件（组织、期间、单据类型）几乎不变，把这套组合存成命名模板，
+下次直接 `--query <名字>` 调，也不用每个月把参数重新说一遍。模板只存「取什么 / 给谁」，**不存凭据**。
+
+```bash
+# 保存当前参数组合为模板（period 用相对期间，模板才能长期有效）
+python data_exporter.py --only SAL_OUTSTOCK --org 101 --period last-month --output-dir D:/月结 --save-query 月结销售出库
+
+# 下个月直接调用，期间自动往前滚一个月
+python data_exporter.py --query 月结销售出库
+
+# 查看已保存的模板
+python data_exporter.py --list-queries
+```
+
+- `--save-query <名字>`：把本次的 `--org` / `--only` / `--form-id` / `--fields` / `--filter-string` / `--output-dir` / `--period`（或 `--start`+`--end`）存下来。
+- `--query <名字>`：加载模板，参数回填到本次运行（命令行显式给的值优先于模板）。
+- `--period` 支持：`last-month` / `this-month` / `last-quarter` / `this-quarter` / `last-year` / `this-year` / `YYYY-MM`（该月整月）。
+  **务必用相对期间，别存固定日期** —— 固定日期的模板第二个月就失效了。
+- 模板文件在 `~/.workbuddy/kingdee/queries.json`，可手改、可进 git 与同事共享，不影响凭据。
+- 模板里若写了 `form_id`，则走通用取数模式（`--form-id`），`period` 会拼成 `FDate` 过滤条件自动套用。
 
 ## 对象探查：不知道 FormId 时怎么办
 
