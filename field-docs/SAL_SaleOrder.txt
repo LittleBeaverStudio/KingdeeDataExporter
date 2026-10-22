@@ -230,7 +230,7 @@ BOM版本: FBomId
 最新采购入库价: FInStockPrice
 仓库: FSOStockId
 仓位: FSOStockLocalId
-牙博士: FF100001
+自定义字段: FF100001
 采购计价单位: FPurPriceUnitId
 已预留: FISMRP
 零售条形码: FBarcode

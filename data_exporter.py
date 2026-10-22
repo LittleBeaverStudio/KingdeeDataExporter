@@ -7,6 +7,7 @@
 
 import argparse
 import copy
+import html
 import http.cookiejar
 import json
 import os
@@ -34,8 +35,8 @@ except ModuleNotFoundError:
 _JSON = json  # HTTP 层里形参会占用 json 这个名字，用一个别名避免遮蔽
 
 
-APP_VERSION = "2.4.3"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
-BUILD_DATE = "2026-10-19"      # 用于和「日期形态」的 Release tag 比较
+APP_VERSION = "2.4.4"          # 唯一版本源：SKILL.md / README / 发布包都以此为准
+BUILD_DATE = "2026-10-22"      # 用于和「日期形态」的 Release tag 比较
 RELEASES_API_URL = "https://api.github.com/repos/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 RELEASES_PAGE_URL = "https://github.com/LittleBeaverStudio/KingdeeDataExporter/releases/latest"
 
@@ -3011,8 +3012,15 @@ def print_update_notice(update_info):
     print("=" * 60)
 
 
-def _query_all_pages(session, base_url, form_id, field_keys, filter_string="", page_size=2000, timeout=60):
-    """按主键分页拉全量数据（不限内置清单，任意 FormId）。"""
+def _query_all_pages(session, base_url, form_id, field_keys, filter_string="", page_size=2000, timeout=60,
+                     order_string=""):
+    """按主键分页拉全量数据（不限内置清单，任意 FormId）。
+
+    `filter_string` 既可以是字符串（如 `"FDate>='2026-01-01'"`），
+    也可以是**条件数组**（`[{"FieldName":...,"Compare":...,"Value":...}]`）。
+    后者正是金蝶过滤方案里 `<FilterSetting>` 的原生结构，直接透传即可，
+    不需要把比较符换算成字符串——换算表一旦猜错就是静默错数。
+    """
     url = _normalize_base_url(base_url) + (
         "Kingdee.BOS.WebApi.ServicesStub.DynamicFormService.ExecuteBillQuery.common.kdsvc"
     )
@@ -3025,7 +3033,7 @@ def _query_all_pages(session, base_url, form_id, field_keys, filter_string="", p
                 "FormId": form_id,
                 "FieldKeys": field_keys,
                 "FilterString": filter_string,
-                "OrderString": "",
+                "OrderString": order_string or "",
                 "TopRowCount": 0,
                 "StartRow": start,
                 "Limit": page_size,
@@ -3101,6 +3109,20 @@ def export_generic_form(form_id, fields="", filter_string="", output_dir="."):
         return 3
 
     df = pd.DataFrame(rows, columns=keys)
+    path = _write_form_excel(df, sheet, form_id, output_dir)
+    if not path:
+        audit_log("export_form_failed", form=form_id, reason="write excel failed")
+        return 3
+
+    audit_log("export_form", form=form_id, rows=len(df), output=path.name)
+
+    print(f"\n共 {len(df)} 行")
+    print(f"已导出：{path}")
+    return 0
+
+
+def _write_form_excel(df, sheet, form_id, output_dir=".", action="export_form", sheet_name="数据"):
+    """把 df 写成带表头样式的 Excel，返回路径；失败返回 None。"""
     out_dir = Path(output_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -3108,16 +3130,439 @@ def export_generic_form(form_id, fields="", filter_string="", output_dir="."):
     path = out_dir / f"{safe_name}_{form_id}_{ts}.xlsx"
     try:
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="数据", index=False)
-            beautify_worksheet(writer.sheets["数据"], df, True)
-    except Exception as exc:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            beautify_worksheet(writer.sheets[sheet_name], df, True)
+    except Exception as exc:  # noqa: BLE001
         print(f"写入 Excel 失败：{exc}")
-        audit_log("export_form_failed", form=form_id, reason=str(exc)[:200])
+        audit_log(action + "_failed", form=form_id, reason=str(exc)[:200])
+        return None
+    return path
+
+
+# ────────────────────── 已保存的过滤方案（金蝶侧）──────────────────────
+# 金蝶单据列表/报表的「过滤方案」存在基础对象 BOS_FilterScheme 里，
+# 其 FScheme 字段是一段 XML 包 JSON：<FilterSetting> / <ColumnSetting> / <SortSetting>。
+# 其中 <FilterSetting> 的结构（Left/FieldName/Compare/Value/Right/Logic）
+# **就是** ExecuteBillQuery 的 FilterString 数组结构 —— 所以直接透传即可，
+# 不需要把 105/106/63/92 这类比较符编码翻译成字符串（猜错就是静默错数）。
+
+SCHEME_FORM_ID = "BOS_FilterScheme"
+SCHEME_CONTENT_FIELDS = "FFormID,FSchemeName,FIsDefault,FUserID,FSchemeDescription,FScheme"
+# 下拉多选式状态过滤用的比较符（属于 / IN），同一字段出现多次时要合并，否则接口按 AND 互相抵消
+_SCHEME_IN_COMPARE = {"106"}
+# 报表类对象（走 GetSysReportData）：它们的方案是报表版式方案，不能当列表过滤方案用
+_REPORT_FORM_RE = re.compile(r"(_RPT_|RPT$|Rpt$|SumReport$|Report$)", re.I)
+
+
+def _scheme_tag(content, tag):
+    """从 FScheme 的 XML 外壳里取出某个标签内的 JSON 文本（已反转义）。"""
+    m = re.search(r"<%s>(.*?)</%s>" % (tag, tag), content or "", re.S)
+    return html.unescape(m.group(1)).strip() if m else ""
+
+
+def _scheme_json(content, tag, default=None):
+    text = _scheme_tag(content, tag)
+    if not text:
+        return default if default is not None else None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return default if default is not None else None
+
+
+def _scheme_field_key(key):
+    """列设置里的 FCUSTOMERID_FName → FCUSTOMERID.FName（取数接口的点号写法）。"""
+    key = str(key or "").strip()
+    return re.sub(r"_(FName|FNumber|FDataValue|FName_CHT|FName_EN)$", lambda m: "." + m.group(1), key)
+
+
+def _scheme_column_keys(column_setting):
+    keys = []
+    for item in column_setting or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("V")) not in ("1", "True", "true"):
+            continue
+        key = _scheme_field_key(item.get("F"))
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def _scheme_sort_string(sort_setting):
+    parts = []
+    for item in sort_setting or []:
+        if not isinstance(item, dict):
+            continue
+        key = _scheme_field_key(
+            item.get("FieldName") or item.get("FieldKey") or item.get("F") or ""
+        )
+        if not key:
+            continue
+        raw = item.get("SortType", item.get("IsAsc", item.get("Direction", 1)))
+        desc = str(raw).strip().lower() in ("2", "desc", "false", "0")
+        parts.append("%s %s" % (key, "DESC" if desc else "ASC"))
+    return ",".join(parts)
+
+
+def _scheme_conditions(content):
+    """把 FilterSetting 规范成可透传的条件数组。
+
+    唯一变形：同一字段、同比较符的「属于(106)」多值合并成一次 IN。
+    预设方案「待审核应收单」就是 `FDocumentStatus 属于 C` + `属于 Z` 两行，
+    接口按 AND 解释会得到 0 行，而界面上是并集 —— 合并后与界面一致。
+    """
+    raw = _scheme_json(content, "FilterSetting", []) or []
+    merged, seen = [], {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        cond = {
+            "Left": str(item.get("Left") or ""),
+            "FieldName": str(item.get("FieldName") or "").strip(),
+            "Compare": str(item.get("Compare") or "").strip(),
+            "Value": "" if item.get("Value") is None else str(item.get("Value")),
+            "Right": str(item.get("Right") or ""),
+            "Logic": str(item.get("Logic") or "0"),
+        }
+        if not cond["FieldName"]:
+            continue
+        sig = (cond["FieldName"], cond["Compare"], cond["Left"], cond["Right"])
+        if cond["Compare"] in _SCHEME_IN_COMPARE and not cond["Left"] and not cond["Right"] and sig in seen:
+            prev = merged[seen[sig]]
+            joined = ",".join(x for x in (prev["Value"], cond["Value"]) if x)
+            prev["Value"] = joined
+            prev["Logic"] = cond["Logic"]
+            continue
+        seen[sig] = len(merged)
+        merged.append(cond)
+    return merged
+
+
+def _scheme_status_conditions(content):
+    """单据状态 / 关闭状态 / 作废状态下拉（StatusFilterSetting）非「全部」时补成条件。"""
+    raw = _scheme_json(content, "StatusFilterSetting", []) or []
+    conds = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("Key") or "").strip()
+        value = item.get("Value")
+        if not key:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            if value in ("", "[all]", "all"):
+                continue
+            value = value.strip("[]")
+        elif isinstance(value, (list, tuple)):
+            value = ",".join(str(v) for v in value if str(v).strip())
+        else:
+            continue
+        if not value:
+            continue
+        conds.append({
+            "Left": "", "FieldName": key, "Compare": "106",
+            "Value": value, "Right": "", "Logic": "0",
+        })
+    return conds
+
+
+def _parse_scheme(row, keys):
+    """把 BOS_FilterScheme 的一行解析成 {name, form_id, is_default, user, columns, filter, sort}。"""
+    rec = dict(zip(keys, row))
+    content = rec.get("FScheme") or ""
+    columns = _scheme_column_keys(_scheme_json(content, "ColumnSetting", []))
+    conds = _scheme_status_conditions(content) + _scheme_conditions(content)
+    return {
+        "name": str(rec.get("FSchemeName") or "").strip(),
+        "form_id": str(rec.get("FFormID") or "").strip(),
+        "is_default": str(rec.get("FIsDefault")).lower() in ("1", "true"),
+        "user": "系统预设" if str(rec.get("FUserID") or "").strip() in ("-1", "") else str(rec.get("FUserID") or "").strip(),
+        "note": str(rec.get("FSchemeDescription") or "").strip(),
+        "columns": columns,
+        "filter": conds,
+        "sort": _scheme_sort_string(_scheme_json(content, "SortSetting", [])),
+    }
+
+
+def fetch_saved_schemes(session, base_url, form_id=""):
+    """读当前账号可见的已保存过滤方案；form_id 为空时读全部（仅名称，不带内容）。"""
+    if form_id:
+        rows = _query_all_pages(
+            session, base_url, SCHEME_FORM_ID, SCHEME_CONTENT_FIELDS,
+            "FFormID='%s'" % form_id, page_size=500,
+        )
+        keys = [k.strip() for k in SCHEME_CONTENT_FIELDS.split(",")]
+        return [_parse_scheme(row, keys) for row in rows]
+    rows = _query_all_pages(session, base_url, SCHEME_FORM_ID, "FFormID,FSchemeName", page_size=1000)
+    return [{"form_id": str(r[0] or "").strip(), "name": str(r[1] or "").strip()} for r in rows]
+
+
+def _describe_filter(conds):
+    if not conds:
+        return "无过滤条件"
+    parts = []
+    for c in conds:
+        val = c["Value"]
+        val = "「%s」" % val if val else "（空）"
+        parts.append("%s 比较符%s %s" % (c["FieldName"], c["Compare"], val))
+    return "；".join(parts)
+
+
+def _resolve_form_id_by_name(session, base_url, token, prefer_forms=None):
+    """把中文对象名解析成 FormId（方案定位用）。
+
+    `prefer_forms` 传入「确实有保存方案的对象」，同名对象（应收单 / 应收单_EN / 应收单_CHT）
+    有多个时优先取其中有方案的那个 —— 用户说"应收单的方案"时就是它。
+    """
+    token = str(token or "").strip()
+    if not token:
+        return "", "未指定表单"
+    if re.match(r"^[A-Za-z][A-Za-z0-9_]*$", token):
+        return token, None
+    try:
+        objects = fetch_objects(session, base_url)
+    except Exception as exc:  # noqa: BLE001
+        return "", "读取业务对象清单失败：%s" % exc
+
+    def narrow(cands):
+        if prefer_forms is not None:
+            hit = [o for o in cands if o.get("formid") in prefer_forms]
+            if hit:
+                cands = hit
+        base = [o for o in cands if not str(o.get("name") or "").endswith(("_EN", "_CHT"))]
+        return base or cands
+
+    exact = [o for o in objects if (o.get("name") or "").strip() == token]
+    if len(exact) > 1:
+        exact = narrow(exact)
+    if len(exact) == 1:
+        return exact[0]["formid"], None
+    if not exact:
+        fuzzy = narrow([o for o in objects if token in (o.get("name") or "")])
+        if len(fuzzy) == 1:
+            return fuzzy[0]["formid"], None
+        if not fuzzy:
+            return "", "找不到名为「%s」的业务对象，请直接用 FormId（--list-objects --object-kw 查）" % token
+        exact = fuzzy
+    names = "、".join("%s(%s)" % (o.get("name"), o.get("formid")) for o in exact[:6])
+    return "", "「%s」匹配到多个对象：%s；请改用 FormId" % (token, names)
+
+
+def _print_scheme_table(schemes, form_id):
+    rows = []
+    for i, s in enumerate(schemes):
+        rows.append([
+            str(i),
+            s["name"] or "-",
+            s.get("user") or "-",
+            "是" if s.get("is_default") else "",
+            str(len(s.get("filter") or [])),
+            str(len(s.get("columns") or [])),
+        ])
+    _print_table(["序号", "方案名", "创建者", "默认", "条件数", "列数"], rows)
+    print("创建者显示的是内部账号 ID（取数账号通常没有用户资料读取权限）；「系统预设」= 金蝶自带方案")
+    print("用法：python data_exporter.py --form-id %s --scheme \"方案名\"" % form_id)
+    print("      同名方案有多个时加 --scheme-index <序号>；方案里的条件/列/排序会原样复用")
+
+
+def list_schemes_command(form_id=""):
+    """`--list-schemes`：列出金蝶里已保存的过滤方案。"""
+    session, base_url, err = open_session()
+    if err:
+        return err
+
+    if not form_id or form_id == "*":
+        try:
+            all_schemes = fetch_saved_schemes(session, base_url)
+        except Exception as exc:  # noqa: BLE001
+            print(f"读取过滤方案失败：{exc}")
+            return 3
+        counts = {}
+        for s in all_schemes:
+            counts.setdefault(s["form_id"], []).append(s["name"])
+        if not counts:
+            print("该账套没有已保存的过滤方案（或当前账号看不到他人方案）。")
+            return 0
+        ordered = sorted(counts.items(), key=lambda kv: -len(kv[1]))
+        _print_table(
+            ["FormId", "方案数", "示例方案"],
+            [[fid, str(len(names)), "、".join(names[:3])] for fid, names in ordered[:40]],
+        )
+        print(f"\n共 {len(all_schemes)} 个方案，分布在 {len(counts)} 个对象上"
+              f"（只显示方案数前 40 个对象）。")
+        print("看某个对象的方案：python data_exporter.py --list-schemes <FormId 或 中文名>")
+        return 0
+
+    prefer = None
+    if not re.match(r"^[A-Za-z][A-Za-z0-9_]*$", str(form_id).strip()):
+        try:
+            prefer = {s["form_id"] for s in fetch_saved_schemes(session, base_url)}
+        except Exception:  # noqa: BLE001
+            prefer = None
+    resolved, note = _resolve_form_id_by_name(session, base_url, form_id, prefer)
+    if not resolved:
+        print(note)
+        return 3
+    try:
+        schemes = fetch_saved_schemes(session, base_url, resolved)
+    except Exception as exc:  # noqa: BLE001
+        print(f"读取过滤方案失败：{exc}")
+        return 3
+    print(f"\n对象 {resolved} 的已保存过滤方案：{len(schemes)} 个")
+    if not schemes:
+        print("  没有方案。方案需先在金蝶列表页【过滤】→ 设置 →【保存】。")
+        print("  也可能该方案属于别的账号：过滤方案有「共享」属性，未共享时当前取数账号看不到。")
+        return 0
+    _print_scheme_table(schemes, resolved)
+    return 0
+
+
+def _pick_scheme(schemes, name, index=0):
+    """按名称挑方案：先精确匹配，再忽略大小写/空白，最后唯一模糊命中。"""
+    name = str(name or "").strip()
+    exact = [s for s in schemes if s["name"] == name]
+    if not exact:
+        low = re.sub(r"\s+", "", name).lower()
+        exact = [s for s in schemes if re.sub(r"\s+", "", s["name"]).lower() == low]
+    if not exact:
+        exact = [s for s in schemes if name and name in s["name"]]
+    if not exact:
+        return None, "对象 %s 下没有名为「%s」的方案。先跑 --list-schemes 看可用方案。" % (
+            schemes[0]["form_id"] if schemes else "-", name)
+    if index >= len(exact):
+        index = 0
+    if len(exact) > 1 and index == 0:
+        print(f"[提示] 有 {len(exact)} 个同名方案，取第 1 个（{exact[0]['user'] or '未知创建者'}）；"
+              f"换一个用 --scheme-index 1..{len(exact) - 1}")
+    return exact[index], None
+
+
+def _scheme_query(session, base_url, form_id, keys, conds, order_string):
+    """按方案取数；方案里个别列在当前账套不可查时，跳过该列继续（不让整次导出一条都不出）。"""
+    keys = list(keys)
+    drops = 0
+    for _ in range(10):
+        try:
+            rows = _query_all_pages(
+                session, base_url, form_id, ",".join(keys), conds,
+                page_size=2000, order_string=order_string,
+            )
+            return rows, keys
+        except RuntimeError as exc:
+            text = str(exc)
+            bad = next((k for k in keys if k.split(".")[0] in text or k in text), None)
+            if not bad:
+                raise
+            # 先试一次「把最后一个 _Fxxx 改成 .Fxxx」的修复写法（如 FBIZVOUCHERID_VchInfo_FBillNo）
+            repaired = re.sub(r"_(F[A-Za-z]+)$", r".\1", bad)
+            if "." not in bad and repaired != bad:
+                keys[keys.index(bad)] = repaired
+                print(f"  [提示] 列 {bad} 改写成 {repaired} 后重试")
+                continue
+            drops += 1
+            if drops > 3 or len(keys) == 1:
+                raise
+            keys.remove(bad)
+            print(f"  [WARN] 方案里的字段 {bad} 在本账套取不到，已跳过（剩 {len(keys)} 列）")
+    raise RuntimeError("字段反复报错，已放弃；请用 --fields 显式指定列")
+
+
+def export_with_scheme(form_id="", scheme_name="", fields="", output_dir=".", scheme_index=0):
+    """按金蝶里已保存的过滤方案取数：复用它的 条件 + 显示列 + 排序。"""
+    missing = get_missing_config_keys(KINGDEE_CONFIG)
+    if missing:
+        print_config_guide("配置不完整：" + "、".join(missing))
         return 3
 
-    audit_log("export_form", form=form_id, rows=len(df), output=path.name)
+    session, base_url, err = open_session()
+    if err:
+        return err
+
+    if not form_id:
+        # 没给 --form-id 时，先按方案名反查表单（只取名称字段，轻量）
+        try:
+            all_schemes = fetch_saved_schemes(session, base_url)
+        except Exception as exc:  # noqa: BLE001
+            print(f"读取过滤方案失败：{exc}")
+            return 3
+        target = re.sub(r"\s+", "", str(scheme_name)).lower()
+        hits = [s for s in all_schemes if re.sub(r"\s+", "", s["name"]).lower() == target]
+        if not hits:
+            hits = [s for s in all_schemes if target and target in re.sub(r"\s+", "", s["name"]).lower()]
+        forms = []
+        for s in hits:
+            if s["form_id"] not in forms:
+                forms.append(s["form_id"])
+        if not forms:
+            print(f"全账套都没有名为「{scheme_name}」的过滤方案。")
+            print("  ① 先跑 --list-schemes 确认方案名与所属表单；")
+            print("  ② 方案有「共享」属性，未共享给取数账号就看不到；")
+            print("  ③ 也可能是在别的账套/别的账号下保存的。")
+            return 3
+        if len(forms) > 1:
+            print(f"「{scheme_name}」在多个对象上都有同名方案：{'、'.join(forms)}")
+            print("  请加 --form-id 指定其中一个。")
+            return 3
+        form_id = forms[0]
+        print(f"方案「{scheme_name}」所属表单：{form_id}")
+
+    if _REPORT_FORM_RE.search(form_id):
+        print(f"{form_id} 是**报表类**对象，报表的过滤方案是版式方案，不能当列表过滤方案用。")
+        print("  → 报表请走内置清单：python data_exporter.py --only <报表名> --start YYYY-MM-DD --end YYYY-MM-DD")
+        print("  → 清单外的报表：--list-objects --object-kw <关键字> 找到后，用 --form-id 试一次能否取数")
+        return 3
+
+    try:
+        schemes = fetch_saved_schemes(session, base_url, form_id)
+    except Exception as exc:  # noqa: BLE001
+        print(f"读取过滤方案失败：{exc}")
+        return 3
+    scheme, note = _pick_scheme(schemes, scheme_name, scheme_index)
+    if not scheme:
+        print(note)
+        return 3
+
+    keys = [k.strip() for k in str(fields or "").split(",") if k.strip()]
+    if not keys:
+        keys = list(scheme["columns"])
+    if not keys:
+        print("方案里没有可用的显示列，请用 --fields 显式指定要导出的字段。")
+        return 3
+
+    print(f"\n对象：{form_id}")
+    print(f"方案：{scheme['name']}（创建者 {scheme['user'] or '未知'}，"
+          f"{'默认方案，' if scheme['is_default'] else ''}条件 {len(scheme['filter'])} 条，列 {len(keys)} 个）")
+    print(f"条件：{_describe_filter(scheme['filter'])}")
+    if scheme["sort"]:
+        print(f"排序：{scheme['sort']}")
+    print("说明：条件/排序原样交给金蝶接口，口径与列表页该方案一致。")
+
+    try:
+        rows, used_keys = _scheme_query(
+            session, base_url, form_id, keys, scheme["filter"], scheme["sort"]
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"取数失败：{exc}")
+        if "报表" in str(exc):
+            print("  → 报表类对象（GL_RPT_* / *_SumReport 等）走的是报表接口，不支持按列表方案取数，"
+                  "请改用 --only 走内置清单。")
+        return 3
+
+    df = pd.DataFrame(rows, columns=used_keys)
+    sheet_name = re.sub(r"[\[\]:*?/\\]", "_", scheme["name"] or "数据")[:31] or "数据"
+    path = _write_form_excel(df, scheme["name"] or form_id, form_id, output_dir,
+                             action="export_scheme", sheet_name=sheet_name)
+    if not path:
+        return 3
+
+    audit_log("export_scheme", form=form_id, scheme=scheme["name"], rows=len(df), output=path.name)
 
     print(f"\n共 {len(df)} 行")
+    if len(df) == 0:
+        print("  0 行不一定是出错：方案里若带「本月 / 本期」这类相对日期条件，当期没有单据就是 0 行。")
+        print("  可先用 --list-schemes 看方案条件，再到金蝶列表页选同一方案核对行数。")
     print(f"已导出：{path}")
     return 0
 
@@ -3484,6 +3929,19 @@ def main():
         help="通用取数：导出任意业务对象（不限于内置清单），如 GL_Voucher / FA_Card / STK_Inventory",
     )
     parser.add_argument(
+        "--list-schemes", nargs="?", const="*", metavar="FORM", default=None,
+        help="列出金蝶里已保存的过滤方案；给表单（FormId 或中文名）看明细，不给则按对象汇总",
+    )
+    parser.add_argument(
+        "--scheme", dest="scheme", default="",
+        help="按金蝶里已保存的过滤方案导出（条件+显示列+排序全套复用），如 --scheme 日报表；"
+             "不给 --form-id 时按方案名自动定位表单",
+    )
+    parser.add_argument(
+        "--scheme-index", dest="scheme_index", type=int, default=0,
+        help="同名方案有多个时选第几个（从 0 开始，用 --list-schemes 查序号）",
+    )
+    parser.add_argument(
         "--filter-string", dest="filter_string", default="",
         help="配合 --form-id，直接传金蝶 FilterString，如 \"FDate>='2026-01-01'\"",
     )
@@ -3597,6 +4055,21 @@ def main():
 
     if args.inspect_fields:
         sys.exit(inspect_fields_command(args.inspect_fields, args.filter_keyword, args.json_out))
+
+    if args.list_schemes is not None:
+        sys.exit(list_schemes_command(args.list_schemes))
+
+    if args.scheme:
+        if args.filter_string or args.start or args.end:
+            print("[提示] 用 --scheme 时以方案自身的条件为准，--filter-string / --start / --end 不生效；")
+            print("       要叠加条件请在金蝶里另存一个方案，或改用 --form-id + --filter-string。")
+        sys.exit(export_with_scheme(
+            form_id=args.form_id or "",
+            scheme_name=args.scheme,
+            fields=args.extra_fields or "",
+            output_dir=args.output_dir,
+            scheme_index=args.scheme_index,
+        ))
 
     if args.form_id:
         fs = args.filter_string or ""

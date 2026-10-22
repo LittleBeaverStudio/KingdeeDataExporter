@@ -151,7 +151,7 @@ BOM版本: FBomID
 源单类型: FSrcType
 累计退货数量(基本单位): FBaseSumRetstockQty
 仓位: FStockLocID
-牙博士: FF100001
+自定义字段: FF100001
 生产日期: FProduceDate
 有效期至: FExpiryDate
 勾稽数量（作废）: FJoinedQty

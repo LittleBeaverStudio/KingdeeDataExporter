@@ -98,7 +98,7 @@ BOM版本: FBOMId
 保质期单位: FExpUnit
 保质期: FExpPeriod
 仓位: FStocklocId
-牙博士: FF100001
+自定义字段: FF100001
 客户物料编码: FMapId
 客户物料名称: FMapName
 批号: FLot

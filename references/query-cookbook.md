@@ -55,7 +55,46 @@
 - **字段权限对 WebAPI 不生效**：界面上看不到的字段，API 可能照样查得到；反之亦然。所以"界面上有"不能作为"API 能取"的依据。
 - **`SubSystemId` 许可陷阱**：单据菜单发布到多个应用、但许可未买全时，`ExecuteBillQuery` 可能查不到数据。排查时在过滤条件与字段可见性之后检查许可。
 - **价格类字段脱敏**：部分字段返回 `***` 而非报错，且会动态变化。需要金额时换单据类型取价，或走税额反推。
-- **`FNumber` vs `FCreatorId.FName`**：字段引用（`.` 写法）只能用于**返回字段**，不能用于**过滤条件**。要按人过滤，先查出该人的内码。
+- **`FNumber` vs `FCreatorId.FName`**：字段引用（`.` 写法）作为**返回字段**稳定可用；作为**过滤条件**则因字段而异 ——
+  实测 `AR_receivable` 的 `FCustomerID.FName` / `FCreatorId.FName` 可以（返回行数正确），
+  而 `SAL_OUTSTOCK` 的 `FCustId.FName` 会报「数据库执行异常」。报这个错时改用内码先查出主键，或用「按已保存的方案导出」直接复用界面上已配好的条件。
+
+## 5.5 按已保存的过滤方案取数（`FScheme` 机制）
+
+金蝶列表的「过滤方案」存在基础对象 `BOS_FilterScheme`（`FScheme` 字段），内容是一段 XML 外壳包三段 JSON：
+
+```text
+<ListFilterSchemeEntity>
+  <FilterSetting>[{"FieldName":"FDATE","Compare":"63","Value":"","Left":"","Right":"","Logic":"0"}]</FilterSetting>
+  <ColumnSetting>[{"F":"FCUSTOMERID_FName","V":1,...}]</ColumnSetting>
+  <SortSetting>[]</SortSetting>
+  <StatusFilterSetting>[{"Key":"FDOCUMENTSTATUS","Value":"[all]"}]</StatusFilterSetting>
+</ListFilterSchemeEntity>
+```
+
+- `<FilterSetting>` 的结构与 `ExecuteBillQuery` 的 `FilterString` **完全相同**（`Left/FieldName/Compare/Value/Right/Logic`），
+  所以可以直接把这段 JSON 数组当 `FilterString` 传 —— 不需要把比较符编码翻译成字符串。
+- 已实测的比较符编码（同一字段、同一账套）：
+
+  | Compare | 含义 | 例子 / 验证方式 |
+  |---|---|---|
+  | `17` | 等于（文本 / 引用名称精确匹配） | `FCUSTOMERID.FName` 17「某某医疗科技有限公司」→ 222 行（客户名精确匹配，非模糊） |
+  | `67` | 等于（文本；**不是**包含） | `FRECACCOUNTNAME` 67「交通」→ 0 行，同值用 17 → 43 行 |
+  | `105` | 等于（单选枚举/引用，**不认逗号多值**） | `FDocumentStatus` 105「C,Z」→ 0 行 |
+  | `106` | 属于 / IN（值可写 `C,Z`） | `FDocumentStatus` 106「C,Z」→ 全量 7042 行 |
+  | `63` | 相对日期区间「本期/本月」 | `FDATE` 63 + 空值 → 2026-10-08 ~ 10-21（当期实际数据范围） |
+  | `92` | 相对日期区间「上期/上月」 | `FDATE` 92 + 空值 → 2026-09-14 ~ 09-30 |
+  | `107` | 日期「小于等于今天」（= 已到期） | `FENDDATE_H` 107 + 空值 → 6960 行，到期日最大 = 今天 |
+
+  日期类的 `63/92/107` **不需要传值**，由服务端按当天解析 —— 所以按方案取数天然是"当期"口径，不会因为存了固定日期而失效。
+
+  ⚠️ `106` 的语义要点：把 `属于C` 和 `属于Z` 拆成**两行**传进去，接口按 AND 解释 → 0 行；
+  必须合并成一行 `Value="C,Z"`，才和界面口径一致。
+- `<ColumnSetting>` 里 `V=1` 的是显示列，`F` 是列表列名（`FCUSTOMERID_FName`），取数接口要写成 `FCUSTOMERID.FName`。
+  个别列在本账套已不存在（自定义字段被删）会报「元数据中标识为 XXX 的字段不存在」，跳过该列即可。
+- 报表对象的方案（`<SchemeEntity>` 外壳）是**版式方案**，`FilterSetting` 恒为空，不能当列表方案用。
+
+命令行入口：`--list-schemes [表单]` 看方案，`--scheme "方案名"` 导出（见 `SKILL.md` 同名章节）。
 
 ## 6. 场景配方（可复制）
 

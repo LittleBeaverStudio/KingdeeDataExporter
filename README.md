@@ -18,6 +18,7 @@
 - **连接自检**：六步定位"依赖/配置/网络/账套/登录/权限"到底卡在哪
 - **账套自动发现**：不用问实施商要账套 ID，只填账套名称即可
 - **对象探查**：列子系统 → 列业务对象（含 FormId）→ 体检能否取数，清单外的对象也能定位
+- **按已保存的方案导出**：金蝶列表里存好的过滤方案（条件 + 显示列 + 排序）一条命令原样复用
 - **字段核对**：查出某个单据在当前账套的权威字段清单，避免猜字段
 - 追加官方字段说明中的字段（支持直接写中文名）
 - 导出全组织数据后再按条件筛选
@@ -185,6 +186,30 @@ python data_exporter.py --list-queries
 python data_exporter.py --preview-fields SAL_OUTSTOCK        # 按 FormId
 python data_exporter.py --preview-fields 销售出库单           # 或按中文名
 ```
+
+## 🗂️ 按已保存的过滤方案导出
+
+在金蝶列表页【过滤】→ 设好条件 →【保存方案】存下来的方案（比如应收单的「日报表」），
+可以直接拿来取数：**条件、显示列、排序全套照搬**，不用在命令行重复描述一遍。
+
+```bash
+# 看这个对象下有哪些方案（中文表单名也认）
+python data_exporter.py --list-schemes 应收单
+
+# 按方案导出
+python data_exporter.py --form-id AR_receivable --scheme "日报表" --output-dir D:/取数
+
+# 方案名全账套唯一时，--form-id 也可以省（自动定位表单）
+python data_exporter.py --scheme "日报表"
+```
+
+- 方案存在金蝶基础对象 `BOS_FilterScheme` 里，`<FilterSetting>` 的结构**就是**取数接口 `FilterString` 的原生结构，
+  所以是**原样透传**，不去翻译 `63/92/105/106` 这类比较符编码 —— 翻译表猜错就是静默错数。
+- 同一字段的多选状态（比较符 106 = 属于）会合并成一次 `IN`，与界面口径一致。
+- 方案里有本账套已删的列会自动跳过并提示；同名方案有多个用 `--scheme-index` 选。
+- 与 `--query` 模板的区别：`--query` 存的是**本工具**的参数组合（`~/.workbuddy/kingdee/queries.json`），
+  `--scheme` 读的是**金蝶里**的方案 —— 财务在金蝶改一次，下次取数立刻生效。
+- ⚠️ 只对单据类对象有效；报表的方案是版式方案，不能当列表过滤条件用（代码会提前拦下提示，改走 `--only`）。
 
 ## 🧩 追加默认字段
 
@@ -359,6 +384,15 @@ python data_exporter.py --inspect-fields ER_ExpReimbursement --filter 发票
 ```
 
 这是当前账套的**权威**字段清单，查不到就说明该字段确实不存在，不要继续猜。
+
+### 要不要自己加环境变量？（`export PATH=...` 那行）
+
+**本 Skill 不需要任何环境变量。** 凭据在 `python setup_credentials.py` 的弹窗里填一次，用 Windows DPAPI 加密存到
+`~/.workbuddy/kingdee/`，跟环境变量无关。`KINGDEE_BASE_URL` / `KINGDEE_USERNAME` 这类环境变量只是「不想写配置文件时可以代替」的**可选项**。
+
+如果你在别处看到 `export PATH="$HOME/.local/bin:$PATH"`，那是 **SkillHub 命令行工具**自己的安装目录不在 PATH 里，
+和取数没有关系；只有手工跑过 SkillHub 的 `install.sh` 才需要补，写进 `~/.bashrc` 可永久生效。
+用 WorkBuddy 里的一键安装不需要管这一行（Skill 会落到 `~/.workbuddy/skills/`）。
 
 ### 检查是否有新版本
 

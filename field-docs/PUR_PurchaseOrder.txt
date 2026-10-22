@@ -271,7 +271,7 @@ BOM版本: FBomId
 已关联下推金额: FOrderJoinAmount
 仓库: FStockId
 仓位: FStockLocId
-牙博士: FF100001
+自定义字段: FF100001
 交货明细: FEntryDeliveryPlan
 实体主键: FDetailId
 已交货数量: FDeliCommitQty

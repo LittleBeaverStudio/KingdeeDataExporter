@@ -2,8 +2,8 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.4.3
-description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持追加官方字段、全组织导出、字段核对与结果二次筛选；新增对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。更多效率工具请关注公众号：财务小河狸。
+version: 2.4.4
+description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持按金蝶里已保存的过滤方案（列表方案的条件+显示列+排序）直接导出、追加官方字段、全组织导出、字段核对与结果二次筛选；含对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。更多效率工具请关注公众号：财务小河狸。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
 
@@ -31,6 +31,12 @@ license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费�
 > 不必去任何开放平台申请密钥。配置放在技能目录之外
 > （`~/.workbuddy/kingdee/config.json`），升级技能不会覆盖；只填**账套名称**即可，
 > 账套 ID 会自动解析。配置方法与自检见下方「首次使用」。
+
+> **2.4.4 新增：按金蝶里已保存的过滤方案导出**
+>
+> 你在金蝶列表页【过滤】→ 设好条件 →【保存方案】存下来的方案（如应收单的「日报表」），
+> 现在可以一条命令原样复用：**条件、显示列、排序全套照搬**，不用再在命令行重复描述。
+> `--list-schemes` 看有哪些方案，`--scheme "方案名"` 直接导。详见下方「按已保存的方案导出」。
 
 > **2.4.x 相比 2.3.x 改了什么**（都不改变已有用法，老命令参数照旧）：
 >
@@ -184,6 +190,9 @@ python data_exporter.py --doctor
 | `--test-form <FormId>` | **体检**某个对象：元数据能否读、取数是否通 |
 | `--inspect-fields <FormId>` | 列出某业务对象的实体与字段全清单（核对字段/排障） |
 | `--form-id <FormId>` | 通用取数：导出**任意**业务对象，不限于内置清单 |
+| `--list-schemes [表单]` | 列出金蝶里**已保存的过滤方案**（给表单看明细，不给则按对象汇总） |
+| `--scheme <方案名>` | **按已保存的方案导出**：条件 + 显示列 + 排序全套复用；不带 `--form-id` 时按方案名自动定位表单 |
+| `--scheme-index <n>` | 同名方案有多个时选第几个（序号见 `--list-schemes`） |
 | `--preview-fields <对象>` | 不联网预览某对象的本地字段清单（填凭据前即可看，如 `--preview-fields SAL_OUTSTOCK` 或 `--preview-fields 销售出库单`） |
 | `--check-update` | 检查新版本（**唯一**会访问 GitHub 的选项） |
 | `--version` | 打印当前版本与构建日期 |
@@ -348,6 +357,62 @@ python data_exporter.py --form-id STK_Inventory
 - ⚠️ **报表类对象不支持**（如 `GL_RPT_AccountBalance`、`AR_SumReport`）——
   它们不是业务对象，走的是报表接口，请用 `--only` 从内置清单取。
 
+## 按已保存的方案导出（不用再重复写过滤条件）
+
+金蝶列表页里【过滤】→ 设好条件 →【保存方案】存下来的方案，可以**原样拿来取数**：
+
+```bash
+# ① 先看这个对象下有哪些方案（中文表单名也认）
+python data_exporter.py --list-schemes 应收单
+python data_exporter.py --list-schemes AR_receivable
+
+# ② 按方案导出：条件、显示列、排序全部照搬方案里的设置
+python data_exporter.py --form-id AR_receivable --scheme "日报表" --output-dir D:/取数
+
+# ③ 方案名全账套唯一时，连 --form-id 都可以省（自动定位表单）
+python data_exporter.py --scheme "日报表" --output-dir D:/取数
+
+# ④ 只想要方案的条件、列自己指定
+python data_exporter.py --form-id AR_receivable --scheme "日报表" --fields FBILLNO,FDATE,FCUSTOMERID.FName
+```
+
+`--list-schemes` 不给表单时按对象汇总，用来找"我那个方案到底存哪了"：
+
+```text
+FormId                      方案数  示例方案
+AR_receivable               20      待审核应收单、待处理开票核销、本月
+AR_RECEIVEBILL              21      本周、快速核销默认方案、交行收款单
+SAL_OUTSTOCK                24      Default Scheme、本月待确认应收的出库单
+```
+
+**它和 `--query` 模板的区别**：`--query` 是**本工具自己**存的参数组合（在 `~/.workbuddy/kingdee/queries.json`）；
+`--scheme` 读的是**金蝶里**的方案，财务在金蝶界面改一次，下次取数立刻生效，不用两边维护。
+
+### 实现口径（为什么不会错数）
+
+- 金蝶的方案存在基础对象 `BOS_FilterScheme`（字段 `FScheme`），里面是
+  `<FilterSetting>` / `<ColumnSetting>` / `<SortSetting>` 三段 JSON。
+- 其中 `<FilterSetting>` 的结构（`Left/FieldName/Compare/Value/Right/Logic`）
+  **就是**取数接口 `FilterString` 的原生结构，所以**原样透传**给接口 ——
+  不去翻译 `63/92/105/106` 这类比较符编码。翻译表一旦猜错，就是"静默错数"，比报错更糟。
+- 列设置里 `FCUSTOMERID_FName` 这种取数列写法会转成接口的 `FCUSTOMERID.FName`；
+  个别列在本账套取不到（被删的自定义字段）会跳过并在输出里提示，不会整单失败。
+- 唯一的变形：同一字段的多选状态（比较符 106 = 属于）会合并成一次 `IN`。
+  金蝶预设方案「待审核应收单」存的是 `属于C` + `属于Z` 两行，接口按 AND 解释会得到 0 行，合并后与界面一致。
+
+### 四条边界，先说清楚
+
+1. **只对表单类（单据）对象有效**。报表类（`GL_RPT_AccountBalance`、`AR_SumReport` 等）的方案是**版式方案**，
+   不能当列表过滤方案用，请走 `--only` 从内置清单取；代码会提前拦下并提示，不会瞎试。
+2. **行数是"分录行"还是"单据行"取决于方案里的列**。方案里勾了物料/数量这类单据体字段，
+   导出就是每个分录一行（与列表页一致）；只勾单据头字段才是单据粒度。同一方案两种列组合，行数会不一样。
+3. **0 行不一定出错**。方案里若带「本月/本期」这类相对日期条件，当期没有单据就是 0 行；
+   预设方案的"多状态"口径也可能与你预期不同 —— 到列表页选同一方案核对一下即可。
+4. **看不到某个方案，先看账套对不对**。取数接口读的是**整个账套**的方案表 —— 实测能看到其他同事建的、
+   甚至标了「未共享」的方案（`FIsShare=False` 照样读得到）。所以真正常见的原因是：
+   ① 连的**不是同一个账套**（或多账套环境连错了）；② 方案名写错（中文全/半角、多余空格）；
+   ③ 少数版本对 `BOS_FilterScheme` 的读取权限收得更紧 —— 这时才需要让创建人在「管理查询」里共享给取数账号。
+
 ## 二次筛选 Excel
 
 ```bash
@@ -373,6 +438,8 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | **字段引用只能查、不能当过滤条件** | 用 `FCreatorId.FName='某人'` 会报错。改用内码，或先拉全量再在本地过滤 |
 | **本技能只读** | 不做单据提交、审核、下推等写操作；写操作见 `kingdee-expense-flow` |
 | **报表类对象不走通用取数** | `--form-id` 查的是业务对象；报表（`GL_RPT_AccountBalance`、`AR_SumReport` 等）走另一个接口，请用 `--only` 从内置清单取 |
+| **报表的「方案」不能当列表方案用** | 报表在 `BOS_FilterScheme` 里也有方案记录，但它是**版式方案**（列 + 分组），不含列表过滤条件。`--scheme` 对报表对象无效，会提前拦下提示 |
+| **按方案导出的行数取决于方案里勾的列** | 勾了单据体字段（物料、数量）→ 每个分录一行；只勾单据头 → 单据粒度。与列表页同一方案看到的一致 |
 | **注册表里有 ≠ 能取数** | `--list-objects` 列的是业务对象注册表，其中混有单据转换规则、打印模板、迁移方案等**非表单类对象**，`--form-id` 必然失败。取数前先 `--test-form` 体检 |
 | **动态建模对象的 FormId 不带模块前缀** | 形如纯数字码或 GUID，按 `GL%` 前缀筛会漏。用 `--object-sub <子系统编号>` 按子系统归属筛才完整 |
 | **导全组织需要「组织机构」查看权限** | 缺该权限时 `--org all` 与 `--list-orgs` 都不可用。此时改用 `--org <组织编码>` 直接指定即可绕开 |
@@ -399,6 +466,10 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | 「无法将类型为 ConvertMetaData 的对象强制转换」 | 该 FormId 不是表单类对象（转换规则/打印模板/迁移方案） | 用 `--list-objects --object-kw <关键字>` 另选真正的单据对象 |
 | 元数据能读、`--form-id` 报错 | 对象不允许 WebAPI 查询，或子系统许可未买全 | 跑 `--test-form <FormId>` 分辨是元数据关还是取数关 |
 | 装依赖时报找不到 pandas | 环境缺依赖或 Python 版本过低 | `--doctor` 第 0 步会先报依赖；按提示 `pip install -r requirements.txt`，国内加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` |
+| `--list-schemes` 里没有我保存的方案 | 多数是**账套连错**或方案名不一致；共享状态一般不影响（实测未共享的方案也能读到） | 先 `--show-config` / 配置里的 `base_url`+`acct_name` 确认账套；再核对方案名（中文全半角、空格）。少数版本权限收紧时，让创建人在列表页「管理查询」里共享 |
+| 按方案导出 **0 行** | 方案里带「本月/本期」等相对日期条件，当期确实没单据；或预设方案的多状态口径与预期不同 | 到列表页选同一方案核对行数；`--list-schemes` 可先看方案里的条件 |
+| 按方案导出提示"报表类对象" | 报表的方案是**版式方案**，不是列表过滤方案 | 报表用 `--only <报表名>` 从内置清单取，别用 `--scheme` |
+| 提示 `skillhub：未找到命令`，或看到文档要求 `export PATH="$HOME/.local/bin:$PATH"` | 那是 **SkillHub 命令行工具**的安装目录不在 PATH 里，与取数无关，也不是本 Skill 的环境变量 | 本 Skill **不需要任何环境变量**：凭据在向导里填、DPAPI 加密存 `~/.workbuddy/kingdee/`。只有手工装过 SkillHub CLI 才需要把 `~/.local/bin` 加进 PATH（写进 `~/.bashrc` 可永久生效） |
 
 需要完整判读表与查询实战（去重口径、状态码字典、分页）时，读：
 - `references/error-playbook.md`
