@@ -2,7 +2,7 @@
 name: kingdee-data-exporter
 slug: kingdee-data-exporter
 displayName: 金蝶云星空数据导出
-version: 2.4.4
+version: 2.4.5
 description: 金蝶云星空经营数据导出技能。仅当用户明确要求从金蝶云星空或 K3 Cloud 查询、导出经营数据时使用；支持配置账号、自动发现账套、连接自检、查询组织与可用单据/报表，按期间、组织及单据或报表类型导出多工作表 Excel，也支持按金蝶里已保存的过滤方案（列表方案的条件+显示列+排序）直接导出、追加官方字段、全组织导出、字段核对与结果二次筛选；含对象探查（列子系统、列业务对象、体检对象能否取数），用于不知道 FormId 时定位任意业务对象。更多效率工具请关注公众号：财务小河狸。
 license: 小河狸非转售许可 1.0（企业内部使用免费，转售收费需授权）
 ---
@@ -117,7 +117,7 @@ python setup_credentials.py
 }
 ```
 
-**方式三：环境变量**（适合 CI / 无人值守）
+**方式三：环境变量**（**可选**，不设也能用；适合 CI / 无人值守）
 
 `KINGDEE_BASE_URL` / `KINGDEE_ACCTID`（或 `KINGDEE_ACCT_NAME`）/ `KINGDEE_USERNAME` / `KINGDEE_PASSWORD`
 
@@ -435,7 +435,7 @@ python scripts/filter_export_excel.py --input "导出文件.xlsx" --sheet "应�
 | **价格类字段可能有服务端脱敏** | 部分单据/字段返回 `***` 而不是报错，且**会动态变化** |
 | **SubSystemId 许可陷阱** | 单据菜单发布到多个应用、但许可未买全时，`ExecuteBillQuery` 可能查不到数据 |
 | **必须先配 WebAPI 白名单** | 未配则一切取数失败（`MsgCode 11`）。**这与账号密码无关**，见下方排障 |
-| **字段引用只能查、不能当过滤条件** | 用 `FCreatorId.FName='某人'` 会报错。改用内码，或先拉全量再在本地过滤 |
+| **引用字段能不能当过滤条件，要看具体字段** | 实测 `AR_receivable` 的 `FCustomerID.FName` / `FCreatorId.FName` **可以**（返回行数正确）；`SAL_OUTSTOCK.FCustId.FName` 会报「数据库执行异常」。报错时改用内码，或改用按已保存方案取数（方案里的条件原样透传，不走字符串解析） |
 | **本技能只读** | 不做单据提交、审核、下推等写操作；写操作见 `kingdee-expense-flow` |
 | **报表类对象不走通用取数** | `--form-id` 查的是业务对象；报表（`GL_RPT_AccountBalance`、`AR_SumReport` 等）走另一个接口，请用 `--only` 从内置清单取 |
 | **报表的「方案」不能当列表方案用** | 报表在 `BOS_FilterScheme` 里也有方案记录，但它是**版式方案**（列 + 分组），不含列表过滤条件。`--scheme` 对报表对象无效，会提前拦下提示 |
