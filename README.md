@@ -54,7 +54,14 @@ python setup_credentials.py
 保存到 `~/.workbuddy/kingdee/credentials.bin` —— 绑当前 Windows 用户，同机其它用户读不出、
 拷到别的机器解不开、不在任何 git 仓库内。不写明文、不进对话记录、不落日志。
 
-只看状态不开窗：`python setup_credentials.py --check`
+只看状态不开窗：`python setup_credentials.py --check`；改密码：`--change-key`（要求输两次，避免打错撞锁号）
+
+**不需要用户装 Python 或 tkinter**：当前解释器没带 tkinter 时，先找本机已装的另一个 Python，
+再不行就用内置的**原生 Windows 表单**（`win32_form.py`，纯 ctypes），最后才降级成文字向导 ——
+全程零安装。窗口关掉 = 没有保存（退出码 `10`），不会被当成配置成功。
+
+**这份凭据全系列共用**：分析类技能、报销助手都读它，谁都不另存一份；发票云密钥不在这个文件里
+（在 `piazzone.bin`，归报销助手自己管），所以两边不会互相覆盖。
 
 **从旧版明文迁移**：若本机已有 `~/.workbuddy/kingdee/config.json`（密码明文），跑一次向导即可 ——
 读入旧值 → 加密保存 → **默认勾选删除该明文文件** → 提示**到金蝶后台修改一次密码**。
@@ -316,6 +323,7 @@ KingdeeDataExporter/
 ├── CHANGELOG.md
 ├── data_exporter.py
 ├── setup_credentials.py
+├── win32_form.py        # 原生 Windows 表单（纯 ctypes，缺 tkinter 时用）
 ├── credstore.py
 ├── config.example.py
 ├── requirements.txt
